@@ -1,0 +1,58 @@
+language: julia
+
+# Cache artifacts between tests:
+#
+#   http://discourse.julialang.org/t/recommendation-cache-julia-artifacts-in-ci-services/
+#
+cache:
+  directories:
+  - $HOME/.julia/artifacts
+
+os: linux
+dist: bionic
+
+env:
+  - JULIA_NUM_THREADS: 4
+
+notifications:
+  email: false
+
+jobs:
+
+  allow_failures:
+    - julia: nightly
+
+  include:
+
+    ########################################################
+    ### Unit testing
+    ########################################################
+
+    - stage: "Unit testing"
+      julia: 1.4
+      after_success:
+        # Code coverage
+        - julia -e 'using Pkg; Pkg.add("Coverage");'
+        - julia -e 'using Coverage; Coveralls.submit(Coveralls.process_folder());'
+        - julia -e 'using Coverage; Codecov.submit(Codecov.process_folder());'
+
+    - stage:
+      julia: 1.5
+
+    - stage:
+      julia: nightly
+
+    ########################################################
+    ### Documentation generation
+    ########################################################
+
+    - stage: "Documentation"
+      julia: 1.4
+      install:
+        - julia --project=docs -e 'using Pkg; Pkg.instantiate(); Pkg.add(PackageSpec(path=pwd()));'
+      script:
+        - julia --project=docs --color=yes docs/make.jl
+      after_success: skip
+
+script:
+  - julia --color=yes -e 'using Pkg; Pkg.activate(); Pkg.instantiate(); Pkg.test(coverage=true)'
