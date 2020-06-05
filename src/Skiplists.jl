@@ -5,11 +5,12 @@ Includes
 ===========================#
 
 include("core.jl")
+include("node.jl")
 
 #===========================
 Exports
 ===========================#
 
-export Skiplist
+export Skiplist, height
 
 end # module

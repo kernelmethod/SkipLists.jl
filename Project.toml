@@ -2,3 +2,7 @@ name = "Skiplists"
 uuid = "1bc1db3f-e088-4b4f-941a-131a3eb578db"
 authors = ["kernelmethod <17100608+kernelmethod@users.noreply.github.com>"]
 version = "0.1.0"
+
+[deps]
+Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
