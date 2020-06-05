@@ -36,6 +36,11 @@ External API
 @inline key(node :: SkiplistNode) = node.val
 @inline key(val) = val
 
+Base.string(node :: SkiplistNode) =
+    "SkiplistNode($(key(node)), height = $(height(node)))"
+Base.show(node :: SkiplistNode) = show(string(node))
+Base.display(node :: SkiplistNode) = display(string(node))
+
 function Base.:(<=)(node :: SkiplistNode, val)
     is_sentinel(node) ? is_left_sentinel(node) : (key(node) ≤ val)
 end

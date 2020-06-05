@@ -29,6 +29,9 @@ struct SkiplistNode{T}
 end
 
 struct Skiplist{T}
+    height_p :: Float64
+    max_height :: Int64
+
     left_sentinel :: SkiplistNode{T}
     right_sentinel :: SkiplistNode{T}
     height :: Atomic{Int64}
