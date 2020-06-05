@@ -10,21 +10,23 @@ using Base.Threads
 Constructors
 ===========================#
 
-SkiplistNode(val :: T) where T =
-    SkiplistNode{T}(val)
+SkiplistNode(val :: T; kws...) where T =
+    SkiplistNode{T}(val; kws...)
 
-function SkiplistNode{T}(val; flags = 0x0, p = DEFAULT_P) where T
-    height = random_height(p)
+SkiplistNode{T}(val; p = DEFAULT_P, max_height = DEFAULT_MAX_HEIGHT, kws...) where T =
+    SkiplistNode{T}(val, random_height(p; max_height=max_height); kws...)
+
+function SkiplistNode{T}(val, height; flags = 0x0) where T
     next = Vector{SkiplistNode{T}}(undef, height)
     lock = ReentrantLock()
 
     SkiplistNode{T}(val, next, flags, lock)
 end
 
-LeftSentinel{T}(; kws...) where T =
-    SkiplistNode{T}(zero(T); flags = FLAG_IS_LEFT_SENTINEL, kws...)
-RightSentinel{T}(; kws...) where T =
-    SkiplistNode{T}(zero(T); flags = FLAG_IS_RIGHT_SENTINEL, kws...)
+LeftSentinel{T}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where T =
+    SkiplistNode{T}(zero(T), max_height; flags = FLAG_IS_LEFT_SENTINEL, kws...)
+RightSentinel{T}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where T =
+    SkiplistNode{T}(zero(T), max_height; flags = FLAG_IS_RIGHT_SENTINEL, kws...)
 
 #===========================
 External API

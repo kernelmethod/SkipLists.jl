@@ -19,6 +19,8 @@ using Skiplists: SkiplistNode, LeftSentinel, RightSentinel
         @test isa(right_sentinel, SkiplistNode{Int64})
         @test Skiplists.is_sentinel(left_sentinel) && Skiplists.is_left_sentinel(left_sentinel)
         @test Skiplists.is_sentinel(right_sentinel) && Skiplists.is_right_sentinel(right_sentinel)
+        @test Skiplists.height(left_sentinel) == Skiplists.DEFAULT_MAX_HEIGHT
+        @test Skiplists.height(right_sentinel) == Skiplists.DEFAULT_MAX_HEIGHT
     end
 
     @testset "Compare SkiplistNode pairs" begin
