@@ -36,6 +36,10 @@ Skiplist external API
 height(list :: Skiplist) = list.height[]
 Base.length(list :: Skiplist) = list.length[]
 
+string(list :: Skiplist) = "Skiplist(length = $(length(list)), height = $(height(list)))"
+show(list :: Skiplist) = println(string(list))
+display(list :: Skiplist) = println(string(list))
+
 function Base.vec(list :: Skiplist)
     results = []
     current_node = list.left_sentinel
@@ -49,10 +53,15 @@ function Base.vec(list :: Skiplist)
     results
 end
 
+function Base.in(val, list :: Skiplist)
+    level_found, predecessors, successors = find_node(list, val)
+    level_found != -1
+end
+
 function Base.insert!(list :: Skiplist, val)
     while true
         @debug "Performing insert! for value = $(val)"
-        found, predecessors, successors = find_node(list, val)
+        level_found, predecessors, successors = find_node(list, val)
         new_node = SkiplistNode(val)
 
         old_height = atomic_max!(list.height, height(new_node))

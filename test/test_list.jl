@@ -34,4 +34,12 @@ using Random, Skiplists, Test
         @test vec(list) == collect(1:20)
         @test length(list) == 20
     end
+
+    @testset "Test membership in Skiplist" begin
+        list = Skiplist{Int64}()
+        @test 1 ∉ list
+
+        insert!(list, 1)
+        @test 1 ∈ list
+    end
 end

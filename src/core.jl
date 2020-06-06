@@ -25,7 +25,7 @@ mutable struct SkiplistNode{T}
     val :: T
     next :: Vector{SkiplistNode{T}}
     marked_for_deletion :: Bool
-    fully_linked :: Condition
+    fully_linked :: Bool
     flags :: UInt8
     lock :: ReentrantLock
 end

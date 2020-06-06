@@ -20,7 +20,7 @@ function SkiplistNode{T}(val, height; flags = 0x0) where T
     next = Vector{SkiplistNode{T}}(undef, height)
     lock = ReentrantLock()
 
-    SkiplistNode{T}(val, next, false, Condition(), flags, lock)
+    SkiplistNode{T}(val, next, false, false, flags, lock)
 end
 
 LeftSentinel{T}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where T =
