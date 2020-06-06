@@ -36,22 +36,19 @@ Macros
 macro validate(predecessors, successors, node, expr)
     quote
         valid = true
-        level = 0
+        level = 1
 
         try
-            for ii = 1:height($(esc(node)))
-                level = ii
-                pred = $(esc(predecessors))[ii]
-                succ = $(esc(successors))[ii]
+            while valid && level < height($(esc(node)))
+                pred = $(esc(predecessors))[level]
+                succ = $(esc(successors))[level]
                 lock(pred)
 
                 valid = !is_marked_for_deletion(pred) &&
                         !is_marked_for_deletion(succ) &&
                         next(pred, level) == succ
 
-                if !valid
-                    break
-                end
+                level += 1
             end
 
             if valid
@@ -60,7 +57,7 @@ macro validate(predecessors, successors, node, expr)
                 $(esc(expr))
             end
         finally
-            for ii = 1:level
+            for ii = 1:level-1
                 unlock($(esc(predecessors))[ii])
             end
         end
@@ -68,10 +65,6 @@ macro validate(predecessors, successors, node, expr)
         valid
     end
 end
-
-function weak_validate(predecessors, successors)
-end
-
 
 #===========================
 Skiplist external API
