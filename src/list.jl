@@ -50,13 +50,13 @@ macro validate(predecessors, successors, node, expr, type = :(:strong))
     #
     # Weak validation (used by Base.remove!) drops the second condition, since
     # the successor is supposed to be marked for deletion.
-    local check_valid = if eval(type) == :strong
+    local check_valid = if type == :(:strong)
         :(!is_marked_for_deletion(pred) &&
           !is_marked_for_deletion(succ) &&
-          next(pred, level) == succ)
-    elseif eval(type) == :weak
+          next(pred, level) === succ)
+    elseif type == :(:weak)
         :(!is_marked_for_deletion(pred) &&
-          next(pred, level) == succ)
+          next(pred, level) === succ)
     else
         "Validation type '$(type)' is not defined" |>
         ErrorException |>
@@ -106,25 +106,6 @@ Base.string(list :: Skiplist) = "Skiplist(length = $(length(list)), height = $(h
 Base.show(list :: Skiplist) = println(string(list))
 Base.display(list :: Skiplist) = println(string(list))
 
-"""
-    vec(list :: Skiplist{T}) where T
-
-Convert the skip list `list` into a one-dimensional `Vector{T}` containing all of the elements
-of the skip list, sorted in ascending order.
-"""
-function Base.vec(list :: Skiplist{T}) where T
-    results = Vector{T}(undef, 0)
-    current_node = list.left_sentinel
-    current_node = next(current_node, 1)
-
-    while !is_right_sentinel(current_node)
-        push!(results, current_node.val)
-        current_node = next(current_node, 1)
-    end
-
-    results
-end
-
 function Base.in(val, list :: Skiplist)
     level_found, predecessors, successors = find_node(list, val)
 
@@ -136,34 +117,63 @@ end
 Base.insert!(list :: Skiplist{_,M}, val) where {_,M} =
     insert!(list, SkiplistNode{M}(val; p=list.height_p, max_height=list.max_height))
 
-function Base.insert!(list :: Skiplist, node :: SkiplistNode)
-    while true
-        level_found, predecessors, successors = find_node(list, node)
+@generated function Base.insert!(list :: Skiplist{T,M}, node :: SkiplistNode) where {T,M}
+    local check_exists = if M == :Set
+        quote
+            if level_found != -1
+                node_found = successors[level_found]
 
-        # Update the list height.
-        #
-        # If the height of the list is greater than the old height, then we
-        # will need to replace the connections between the left and right
-        # sentinel nodes.
-        old_height = atomic_max!(list.height, height(node))
-        for ii = old_height+1:height(node)
-            push!(predecessors, list.left_sentinel)
-            push!(successors, list.right_sentinel)
-        end
+                # If the node is in the process of being deleted, wait until it
+                # is deleted before performing insertion again
+                if is_marked_for_deletion(node)
+                    # TODO: use Event or Condition to wait until node is deleted?
+                    continue
+                end
 
-        # Acquire locks to predecessor nodes to ensure that they're still
-        # connected to their corresponding successors
-        valid = @validate(predecessors, successors, node, begin
-            for ii = 1:height(node)
-                link_nodes!(predecessors[ii], node, ii)
-                link_nodes!(node, successors[ii], ii)
+                # If the node is _not_ in the process of being deleted, we wait
+                # until it's fully linked before we return.
+                while !is_fully_linked(node_found)
+                    # TODO: use Event or Condition instead of spinning
+                    sleep(0.001)
+                end
+                return false
             end
-            mark_fully_linked!(node)
-        end)
+        end
+    else
+        :()
+    end
 
-        if valid
-            atomic_add!(list.length, 1)
-            break
+    quote
+        while true
+            level_found, predecessors, successors = find_node(list, node)
+
+            $check_exists
+
+            # Update the list height.
+            #
+            # If the height of the list is greater than the old height, then we
+            # will need to replace the connections between the left and right
+            # sentinel nodes.
+            old_height = atomic_max!(list.height, height(node))
+            for ii = old_height+1:height(node)
+                push!(predecessors, list.left_sentinel)
+                push!(successors, list.right_sentinel)
+            end
+
+            # Acquire locks to predecessor nodes to ensure that they're still
+            # connected to their corresponding successors
+            valid = @validate(predecessors, successors, node, begin
+                for ii = 1:height(node)
+                    link_nodes!(predecessors[ii], node, ii)
+                    link_nodes!(node, successors[ii], ii)
+                end
+                mark_fully_linked!(node)
+            end)
+
+            if valid
+                atomic_add!(list.length, 1)
+                break
+            end
         end
     end
 end
@@ -226,7 +236,7 @@ function find_node(list :: Skiplist{T}, val) where T
     predecessors = Vector{SkiplistNode{T}}(undef, height(list))
     successors = Vector{SkiplistNode{T}}(undef, height(list))
 
-    layer_found = -1
+    level_found = -1
 
     current_node = list.left_sentinel
     for ii = height(list):-1:1
@@ -236,12 +246,12 @@ function find_node(list :: Skiplist{T}, val) where T
             next_node = next(current_node, ii)
         end
 
-        if layer_found == -1 && next_node == val
-            layer_found = ii
+        if level_found == -1 && next_node == val
+            level_found = ii
         end
         predecessors[ii] = current_node
         successors[ii] = next_node
     end
 
-    layer_found, predecessors, successors
+    level_found, predecessors, successors
 end

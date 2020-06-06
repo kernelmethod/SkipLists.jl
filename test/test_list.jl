@@ -26,7 +26,7 @@ using Random, Skiplists, Test
             insert!(list, ii)
         end
 
-        @test vec(list) == collect(1:20)
+        @test collect(list) == collect(1:20)
         @test length(list) == 20
 
         # Insert shuffled values
@@ -35,8 +35,18 @@ using Random, Skiplists, Test
             insert!(list, ii)
         end
 
-        @test vec(list) == collect(1:20)
+        @test collect(list) == collect(1:20)
         @test length(list) == 20
+
+        # All of the nodes should be marked as 'fully linked'
+        current_node = list.left_sentinel
+        success = Skiplists.is_fully_linked(current_node)
+        while success && !Skiplists.is_right_sentinel(current_node)
+            current_node = Skiplists.next(current_node, 1)
+            success = Skiplists.is_fully_linked(current_node)
+        end
+
+        @test success
     end
 
     @testset "Iterate over Skiplist" begin
@@ -71,19 +81,19 @@ using Random, Skiplists, Test
         delete!(list, 1)
         @test length(list) == 2
         @test 1 ∉ list
-        @test vec(list) == collect(2:3)
+        @test collect(list) == collect(2:3)
 
         delete!(list, 2)
         @test length(list) == 1
         @test 2 ∉ list
-        @test vec(list) == collect(3:3)
+        @test collect(list) == collect(3:3)
 
         delete!(list, 3)
         @test length(list) == 0
         @test 3 ∉ list
 
         delete!(list, 0)
-        @test vec(list) == []
+        @test collect(list) == []
         @test length(list) == 0
     end
 
@@ -95,21 +105,41 @@ using Random, Skiplists, Test
         end
 
         @test length(list) == 4
-        @test vec(list) == [1, 1, 2, 2]
+        @test collect(list) == [1, 1, 2, 2]
         @test 1 ∈ list && 2 ∈ list
 
         delete!(list, 1)
         delete!(list, 2)
         @test length(list) == 2
-        @test vec(list) == [1, 2]
+        @test collect(list) == [1, 2]
         @test 1 ∈ list && 2 ∈ list
 
         delete!(list, 1)
         delete!(list, 2)
         @test length(list) == 0
-        @test vec(list) == []
+        @test collect(list) == []
     end
 end
 
 @testset "SkiplistSet tests" begin
+    @testset "Insert into SkiplistSet" begin
+        set = SkiplistSet{Int64}()
+        for ii = 1:10
+            insert!(set, ii)
+        end
+
+        @test length(set) == 10
+        @test collect(set) == 1:10
+
+        # If we now try to insert a duplicate element into the set, it shouldn't
+        # have any effect
+        for ii = 1:10
+            insert!(set, ii)
+        end
+
+        @test length(set) == 10
+        @test collect(set) == 1:10
+    end
 end
+
+

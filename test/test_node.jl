@@ -34,6 +34,10 @@ using Skiplists: SkiplistNode, LeftSentinel, RightSentinel
         # integer should be used as the node's height.
         @test SkiplistNode{:List}(1, 30) |> height == 30
         @test SkiplistNode{:List}(1, 100; max_height=50) |> height == 50
+
+        # Newly constructed sentinels should be marked as fully linked
+        @test Skiplists.is_fully_linked(left_sentinel)
+        @test Skiplists.is_fully_linked(right_sentinel)
     end
 
     @testset "Compare SkiplistNode pairs" begin

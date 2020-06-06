@@ -27,10 +27,17 @@ function SkiplistNode{T,M}(val, height; flags = 0x0, max_height = DEFAULT_MAX_HE
     SkiplistNode{T,M}(val, next, false, false, flags, lock)
 end
 
-LeftSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M} =
-    SkiplistNode{T,M}(zero(T), max_height; flags = FLAG_IS_LEFT_SENTINEL, kws...)
-RightSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M} =
-    SkiplistNode{T,M}(zero(T), max_height; flags = FLAG_IS_RIGHT_SENTINEL, kws...)
+function LeftSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M}
+    node = SkiplistNode{T,M}(zero(T), max_height; flags = FLAG_IS_LEFT_SENTINEL, kws...)
+    mark_fully_linked!(node)
+    node
+end
+
+function RightSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M}
+    node = SkiplistNode{T,M}(zero(T), max_height; flags = FLAG_IS_RIGHT_SENTINEL, kws...)
+    mark_fully_linked!(node)
+    node
+end
 
 #===========================
 External API
@@ -46,8 +53,13 @@ External API
 @inline mark_for_deletion!(node) = (node.marked_for_deletion = true)
 @inline mark_fully_linked!(node) = (node.fully_linked = true)
 
-Base.string(node :: SkiplistNode) =
-    "SkiplistNode($(key(node)), height = $(height(node)))"
+function Base.string(node :: SkiplistNode)
+    result = "key = $(key(node)), height = $(height(node)), "
+    result *= "marked_for_deletion = $(is_marked_for_deletion(node)), "
+    result *= "fully_linked = $(is_fully_linked(node))"
+    "SkiplistNode($result)"
+end
+
 Base.show(node :: SkiplistNode) = println(string(node))
 Base.display(node :: SkiplistNode) = println(string(node))
 
@@ -87,7 +99,10 @@ end
 
 Base.:(==)(node :: SkiplistNode, val) = is_sentinel(node) ? false : key(node) == val
 Base.:(==)(val, node :: SkiplistNode) = (node == val)
-Base.:(==)(node_1 :: SkiplistNode, node_2 :: SkiplistNode) = (node_1 === node_2)
+Base.:(==)(node_1 :: SkiplistNode, node_2 :: SkiplistNode) =
+    (is_sentinel(node_1) || is_sentinel(node_2)) ?
+    false :
+    key(node_1) == key(node_2)
 
 # Node links
 
