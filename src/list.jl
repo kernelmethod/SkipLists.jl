@@ -33,7 +33,28 @@ end
 Macros
 ===========================#
 
-macro validate(predecessors, successors, node, expr)
+macro validate(predecessors, successors, node, expr, type = :(:strong))
+    # Strong validation (used by Base.insert!) requires that we check
+    # the following:
+    # 1. the predecessor node at each level is not marked for deletion;
+    # 2. the successor node at each level is not marked for deletion; and
+    # 3. the predecessor is still connected to the successor.
+    #
+    # Weak validation (used by Base.remove!) drops the second condition, since
+    # the successor is supposed to be marked for deletion.
+    local check_valid = if eval(type) == :strong
+        :(!is_marked_for_deletion(pred) &&
+          !is_marked_for_deletion(succ) &&
+          next(pred, level) == succ)
+    elseif eval(type) == :weak
+        :(!is_marked_for_deletion(pred) &&
+          next(pred, level) == succ)
+    else
+        "Validation type '$(type)' is not defined" |>
+        ErrorException |>
+        throw
+    end
+
     quote
         valid = true
         level = 1
@@ -44,10 +65,7 @@ macro validate(predecessors, successors, node, expr)
                 succ = $(esc(successors))[level]
                 lock(pred)
 
-                valid = !is_marked_for_deletion(pred) &&
-                        !is_marked_for_deletion(succ) &&
-                        next(pred, level) == succ
-
+                valid = $check_valid
                 level += 1
             end
 
@@ -126,19 +144,16 @@ function Base.insert!(list :: Skiplist, node :: SkiplistNode)
             mark_fully_linked!(node)
         end)
 
-        if !valid
-            continue
+        if valid
+            atomic_add!(list.length, 1)
+            break
         end
-
-        atomic_add!(list.length, 1)
-        break
     end
 end
 
 function Base.delete!(list :: Skiplist, val)
     marked = false
     node_to_delete = list.left_sentinel
-    top_level = -1
 
     while true
         level_found, predecessors, successors = find_node(list, val)
@@ -150,7 +165,6 @@ function Base.delete!(list :: Skiplist, val)
 
         if !marked
             node_to_delete = successors[1]
-            top_level = height(node_to_delete)
             lock(node_to_delete)
 
             if is_marked_for_deletion(node_to_delete)
@@ -162,38 +176,16 @@ function Base.delete!(list :: Skiplist, val)
             mark_for_deletion!(node_to_delete)
         end
 
-        current_layer = 1
-        try
-            # Validate that predecessor and successor nodes are
-            # still connected
-            valid = true
-            while current_layer ≤ top_level && valid
-                pred = predecessors[current_layer]
-                succ = successors[current_layer]
-                lock(pred)
-
-                valid = !is_marked_for_deletion(pred) &&
-                         next(pred, current_layer) == succ
-                current_layer += 1
-            end
-
-            if !valid
-                continue
-            end
-
-            # Connections validated. Disconnect predecessor nodes from the
-            # node that we're going to delete.
-            for level = 1:top_level
+        valid = @validate(predecessors, successors, node_to_delete,
+        begin
+            for level = 1:height(node_to_delete)
                 link_nodes!(predecessors[level], next(node_to_delete, level), level)
             end
+        end, :weak)
 
-            unlock(node_to_delete)
+        if valid
             atomic_add!(list.length, -1)
-            return true
-        finally
-            for ii = 1:current_layer-1
-                unlock(predecessors[ii])
-            end
+            break
         end
     end
 end
