@@ -1,6 +1,6 @@
 #=======================================================
 
-Tests for the Skiplist type
+Tests for the Skiplist and SkiplistSet types
 
 =======================================================#
 
@@ -13,6 +13,10 @@ using Random, Skiplists, Test
         list = Skiplist{Int64}()
         @test height(list) == 1
         @test length(list) == 0
+
+        # An error should be raised if we attempt to construct a Skiplist in an
+        # invalid mode
+        @test_throws ErrorException Skiplist{Int64,:Foo}()
     end
 
     @testset "Insert into Skiplist" begin
@@ -105,4 +109,7 @@ using Random, Skiplists, Test
         @test length(list) == 0
         @test vec(list) == []
     end
+end
+
+@testset "SkiplistSet tests" begin
 end

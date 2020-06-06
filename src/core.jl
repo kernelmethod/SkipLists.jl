@@ -43,6 +43,8 @@ end
 abstract type LeftSentinel{T,M} end
 abstract type RightSentinel{T,M} end
 
+SkiplistSet{T} = Skiplist{T,:Set}
+
 #===========================
 Simple function definitions
 ===========================#

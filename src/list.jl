@@ -14,6 +14,12 @@ Constructors
 Skiplist{T}(args...; kws...) where T = Skiplist{T,:List}(args...; kws...)
 
 function Skiplist{T,M}(; max_height = DEFAULT_MAX_HEIGHT, p = DEFAULT_P) where {T,M}
+    if M != :List && M != :Set
+        "Skiplist mode $M is not recognized. Valid options are :List and :Set" |>
+        ErrorException |>
+        throw
+    end
+
     left_sentinel = LeftSentinel{T,M}(; max_height=max_height)
     right_sentinel = RightSentinel{T,M}(; max_height=max_height)
 
