@@ -11,15 +11,17 @@ using Logging
 Constructors
 ===========================#
 
-function Skiplist{T}(; max_height = DEFAULT_MAX_HEIGHT, p = DEFAULT_P) where T
-    left_sentinel = LeftSentinel{T}(; max_height=max_height)
-    right_sentinel = RightSentinel{T}(; max_height=max_height)
+Skiplist{T}(args...; kws...) where T = Skiplist{T,:List}(args...; kws...)
+
+function Skiplist{T,M}(; max_height = DEFAULT_MAX_HEIGHT, p = DEFAULT_P) where {T,M}
+    left_sentinel = LeftSentinel{T,M}(; max_height=max_height)
+    right_sentinel = RightSentinel{T,M}(; max_height=max_height)
 
     for ii = 1:max_height
         link_nodes!(left_sentinel, right_sentinel, ii)
     end
 
-    Skiplist{T}(
+    Skiplist{T,M}(
         p,
         max_height,
         left_sentinel,
@@ -125,8 +127,8 @@ function Base.in(val, list :: Skiplist)
         !is_marked_for_deletion(successors[level_found])
 end
 
-Base.insert!(list :: Skiplist, val) =
-    insert!(list, SkiplistNode(val; p=list.height_p, max_height=list.max_height))
+Base.insert!(list :: Skiplist{_,M}, val) where {_,M} =
+    insert!(list, SkiplistNode{M}(val; p=list.height_p, max_height=list.max_height))
 
 function Base.insert!(list :: Skiplist, node :: SkiplistNode)
     while true
@@ -215,26 +217,24 @@ Skiplist internal API
 ===========================#
 
 function find_node(list :: Skiplist{T}, val) where T
-    h = height(list)
-    predecessors = Vector{SkiplistNode{T}}(undef, h)
-    successors = Vector{SkiplistNode{T}}(undef, h)
+    predecessors = Vector{SkiplistNode{T}}(undef, height(list))
+    successors = Vector{SkiplistNode{T}}(undef, height(list))
 
     layer_found = -1
 
     current_node = list.left_sentinel
-    ii = h
-    while ii > 0
+    for ii = height(list):-1:1
         next_node = next(current_node, ii)
-        if next_node < val
+        while next_node < val
             current_node = next_node
-        else
-            if layer_found == -1 && next_node == val
-                layer_found = ii
-            end
-            predecessors[ii] = current_node
-            successors[ii] = next_node
-            ii -= 1
+            next_node = next(current_node, ii)
         end
+
+        if layer_found == -1 && next_node == val
+            layer_found = ii
+        end
+        predecessors[ii] = current_node
+        successors[ii] = next_node
     end
 
     layer_found, predecessors, successors

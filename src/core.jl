@@ -21,7 +21,7 @@ const IS_SENTINEL = FLAG_IS_LEFT_SENTINEL | FLAG_IS_RIGHT_SENTINEL
 Typedefs
 ===========================#
 
-mutable struct SkiplistNode{T}
+mutable struct SkiplistNode{T,M}
     val :: T
     next :: Vector{SkiplistNode{T}}
     marked_for_deletion :: Bool
@@ -30,7 +30,7 @@ mutable struct SkiplistNode{T}
     lock :: ReentrantLock
 end
 
-struct Skiplist{T}
+struct Skiplist{T,M}
     height_p :: Float64
     max_height :: Int64
 
@@ -40,8 +40,8 @@ struct Skiplist{T}
     length :: Atomic{Int64}
 end
 
-abstract type LeftSentinel{T} end
-abstract type RightSentinel{T} end
+abstract type LeftSentinel{T,M} end
+abstract type RightSentinel{T,M} end
 
 #===========================
 Simple function definitions

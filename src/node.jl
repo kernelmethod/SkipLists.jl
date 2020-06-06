@@ -10,27 +10,27 @@ using Base.Threads
 Constructors
 ===========================#
 
-SkiplistNode(val :: T; kws...) where T =
-    SkiplistNode{T}(val; kws...)
+SkiplistNode{M}(val :: T; kws...) where {T,M} =
+    SkiplistNode{T,M}(val; kws...)
 
-SkiplistNode(val :: T, height; kws...) where T =
-    SkiplistNode{T}(val, height; kws...)
+SkiplistNode{M}(val :: T, height; kws...) where {T,M} =
+    SkiplistNode{T,M}(val, height; kws...)
 
-SkiplistNode{T}(val; p = DEFAULT_P, max_height = DEFAULT_MAX_HEIGHT, kws...) where T =
-    SkiplistNode{T}(val, random_height(p; max_height=max_height); kws...)
+SkiplistNode{T,M}(val; p = DEFAULT_P, max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M} =
+    SkiplistNode{T,M}(val, random_height(p; max_height=max_height); kws...)
 
-function SkiplistNode{T}(val, height; flags = 0x0, max_height = DEFAULT_MAX_HEIGHT) where T
+function SkiplistNode{T,M}(val, height; flags = 0x0, max_height = DEFAULT_MAX_HEIGHT) where {T,M}
     height = min(height, max_height)
     next = Vector{SkiplistNode{T}}(undef, height)
     lock = ReentrantLock()
 
-    SkiplistNode{T}(val, next, false, false, flags, lock)
+    SkiplistNode{T,M}(val, next, false, false, flags, lock)
 end
 
-LeftSentinel{T}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where T =
-    SkiplistNode{T}(zero(T), max_height; flags = FLAG_IS_LEFT_SENTINEL, kws...)
-RightSentinel{T}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where T =
-    SkiplistNode{T}(zero(T), max_height; flags = FLAG_IS_RIGHT_SENTINEL, kws...)
+LeftSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M} =
+    SkiplistNode{T,M}(zero(T), max_height; flags = FLAG_IS_LEFT_SENTINEL, kws...)
+RightSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M} =
+    SkiplistNode{T,M}(zero(T), max_height; flags = FLAG_IS_RIGHT_SENTINEL, kws...)
 
 #===========================
 External API
