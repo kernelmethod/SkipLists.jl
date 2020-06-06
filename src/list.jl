@@ -183,6 +183,11 @@ function Base.delete!(list :: Skiplist, val)
 
             marked = true
             mark_for_deletion!(node_to_delete)
+
+            # Now that the node is marked for deletion, we no longer need to hold on
+            # to its lock. At this point the node is read-only; no other processes
+            # will be able to make any operations on the node.
+            unlock(node_to_delete)
         end
 
         valid = @validate(predecessors, successors, node_to_delete,
