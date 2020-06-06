@@ -63,7 +63,7 @@ macro validate(predecessors, successors, node, expr, type = :(:strong))
             # Starting from the bottom level, traverse up the height of the node
             # and check that the $check_valid condition is true for each predecessor /
             # successor pair.
-            while valid && level < height($(esc(node)))
+            while valid && level ≤ height($(esc(node)))
                 pred = $(esc(predecessors))[level]
                 succ = $(esc(successors))[level]
                 lock(pred)
