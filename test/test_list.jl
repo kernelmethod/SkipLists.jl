@@ -58,7 +58,7 @@ using Random, Skiplists, Test
         @test 1 ∈ list
     end
 
-    @test_skip @testset "Remove from Skiplist" begin
+    @testset "Remove from Skiplist" begin
         list = Skiplist{Int64}()
         insert!(list, 1)
         insert!(list, 2)
