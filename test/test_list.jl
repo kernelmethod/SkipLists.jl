@@ -42,4 +42,29 @@ using Random, Skiplists, Test
         insert!(list, 1)
         @test 1 ∈ list
     end
+
+    @testset "Remove from Skiplist" begin
+        list = Skiplist{Int64}()
+        insert!(list, 1)
+        insert!(list, 2)
+        insert!(list, 3)
+
+        delete!(list, 1)
+        @test length(list) == 2
+        @test 1 ∉ list
+        @test vec(list) == collect(2:3)
+
+        delete!(list, 2)
+        @test length(list) == 1
+        @test 2 ∉ list
+        @test vec(list) == collect(3:3)
+
+        delete!(list, 3)
+        @test length(list) == 0
+        @test 3 ∉ list
+
+        delete!(list, 0)
+        @test vec(list) == []
+        @test length(list) == 0
+    end
 end

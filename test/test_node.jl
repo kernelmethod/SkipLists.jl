@@ -4,14 +4,17 @@ Tests for the SkiplistNode type
 
 =======================================================#
 
-using Skiplists, Test
+using Random, Skiplists, Test
 using Skiplists: SkiplistNode, LeftSentinel, RightSentinel
 
 @testset "SkiplistNode tests" begin
+    Random.seed!(0)
+
     @testset "Construct SkiplistNode" begin
         node = SkiplistNode(1)
         @test isa(node, SkiplistNode{Int64})
         @test height(node) > 0
+        @test Skiplists.key(node) == 1
 
         left_sentinel = LeftSentinel{Int64}()
         right_sentinel = RightSentinel{Int64}()
@@ -21,6 +24,16 @@ using Skiplists: SkiplistNode, LeftSentinel, RightSentinel
         @test Skiplists.is_sentinel(right_sentinel) && Skiplists.is_right_sentinel(right_sentinel)
         @test Skiplists.height(left_sentinel) == Skiplists.DEFAULT_MAX_HEIGHT
         @test Skiplists.height(right_sentinel) == Skiplists.DEFAULT_MAX_HEIGHT
+
+        # A newly constructed SkiplistNode should not be fully linked, nor
+        # should it be marked.
+        @test !Skiplists.is_marked_for_deletion(node)
+        @test !Skiplists.is_fully_linked(node)
+
+        # If two integers are passed to the SkiplistNode constructor, the second
+        # integer should be used as the node's height.
+        @test SkiplistNode(1, 30) |> height == 30
+        @test SkiplistNode(1, 100; max_height=50) |> height == 50
     end
 
     @testset "Compare SkiplistNode pairs" begin
@@ -44,5 +57,9 @@ using Skiplists: SkiplistNode, LeftSentinel, RightSentinel
 
         Skiplists.link_nodes!(node_1, node_2, 1)
         @test Skiplists.next(node_1, 1) == node_2
+    end
+
+    @testset "Check SkiplistNode deletability" begin
+        node = SkiplistNode(1)
     end
 end

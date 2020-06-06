@@ -13,10 +13,14 @@ Constructors
 SkiplistNode(val :: T; kws...) where T =
     SkiplistNode{T}(val; kws...)
 
+SkiplistNode(val :: T, height; kws...) where T =
+    SkiplistNode{T}(val, height; kws...)
+
 SkiplistNode{T}(val; p = DEFAULT_P, max_height = DEFAULT_MAX_HEIGHT, kws...) where T =
     SkiplistNode{T}(val, random_height(p; max_height=max_height); kws...)
 
-function SkiplistNode{T}(val, height; flags = 0x0) where T
+function SkiplistNode{T}(val, height; flags = 0x0, max_height = DEFAULT_MAX_HEIGHT) where T
+    height = min(height, max_height)
     next = Vector{SkiplistNode{T}}(undef, height)
     lock = ReentrantLock()
 
@@ -36,20 +40,39 @@ External API
 @inline key(node :: SkiplistNode) = node.val
 @inline key(val) = val
 
-is_marked(node :: SkiplistNode) = node.marked_for_deletion
+@inline is_marked_for_deletion(node) = node.marked_for_deletion
+@inline is_fully_linked(node) = node.fully_linked
+
+@inline mark_for_deletion!(node) = (node.marked_for_deletion = true)
+@inline mark_fully_linked!(node) = (node.fully_linked = true)
 
 Base.string(node :: SkiplistNode) =
     "SkiplistNode($(key(node)), height = $(height(node)))"
-Base.show(node :: SkiplistNode) = show(string(node))
-Base.display(node :: SkiplistNode) = display(string(node))
+Base.show(node :: SkiplistNode) = println(string(node))
+Base.display(node :: SkiplistNode) = println(string(node))
 
-function Base.:(<=)(node :: SkiplistNode, val)
+"""
+Check that a `SkiplistNode` is okay to be deleted, meaning that
+- it's fully linked,
+- unmarked, and
+- that it was found at its top layer.
+"""
+function ok_to_delete(node, level_found)
+    height(node) == level_found &&
+    is_fully_linked(node) &&
+    !is_marked_for_deletion(node)
+end
+
+# Node comparison
+
+Base.:(<)(node :: SkiplistNode, val) = !(val ≤ node)
+Base.:(<)(val, node :: SkiplistNode) = !(node ≤ val)
+
+Base.:(<=)(node :: SkiplistNode, val) =
     is_sentinel(node) ? is_left_sentinel(node) : (key(node) ≤ val)
-end
 
-function Base.:(<=)(val, node :: SkiplistNode)
+Base.:(<=)(val, node :: SkiplistNode) =
     is_sentinel(node) ? is_right_sentinel(node) : (val ≤ key(node))
-end
 
 function Base.:(<=)(node_1 :: SkiplistNode, node_2 :: SkiplistNode)
     if is_sentinel(node_1)
@@ -70,6 +93,7 @@ end
 next(src :: SkiplistNode, level) = src.next[level]
 
 # Flags
+
 @inline has_flag(node, flag) = (node.flags & flag) != 0
 @inline is_left_sentinel(node) = has_flag(node, FLAG_IS_LEFT_SENTINEL)
 @inline is_right_sentinel(node) = has_flag(node, FLAG_IS_RIGHT_SENTINEL)

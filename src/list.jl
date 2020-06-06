@@ -36,12 +36,12 @@ Skiplist external API
 height(list :: Skiplist) = list.height[]
 Base.length(list :: Skiplist) = list.length[]
 
-string(list :: Skiplist) = "Skiplist(length = $(length(list)), height = $(height(list)))"
-show(list :: Skiplist) = println(string(list))
-display(list :: Skiplist) = println(string(list))
+Base.string(list :: Skiplist) = "Skiplist(length = $(length(list)), height = $(height(list)))"
+Base.show(list :: Skiplist) = println(string(list))
+Base.display(list :: Skiplist) = println(string(list))
 
-function Base.vec(list :: Skiplist)
-    results = []
+function Base.vec(list :: Skiplist{T}) where T
+    results = Vector{T}(undef, 0)
     current_node = list.left_sentinel
     current_node = next(current_node, 1)
 
@@ -60,7 +60,6 @@ end
 
 function Base.insert!(list :: Skiplist, val)
     while true
-        @debug "Performing insert! for value = $(val)"
         level_found, predecessors, successors = find_node(list, val)
         new_node = SkiplistNode(val)
 
@@ -82,10 +81,8 @@ function Base.insert!(list :: Skiplist, val)
                 succ = successors[ii]
                 lock(pred)
 
-                @debug "[insert!(list, $(val))] Acquired lock for level $(level)"
-
-                valid = !is_marked(pred) &&
-                        !is_marked(succ) &&
+                valid = !is_marked_for_deletion(pred) &&
+                        !is_marked_for_deletion(succ) &&
                         next(pred, level) == succ
                 if !valid
                     break
@@ -99,9 +96,10 @@ function Base.insert!(list :: Skiplist, val)
                     link_nodes!(new_node, successors[ii], ii)
                 end
             end
+
+            mark_fully_linked!(new_node)
         finally
             for jj = 1:level
-                @debug "[insert!(list, $(val))] Released locks for level $(jj)"
                 unlock(predecessors[jj])
             end
         end
@@ -112,6 +110,68 @@ function Base.insert!(list :: Skiplist, val)
 
         atomic_add!(list.length, 1)
         break
+    end
+end
+
+function Base.delete!(list :: Skiplist, val)
+    marked = false
+    node_to_delete = list.left_sentinel
+    top_level = -1
+
+    while true
+        level_found, predecessors, successors = find_node(list, val)
+
+        if !marked && (level_found == -1 || !ok_to_delete(successors[1], level_found))
+            # We didn't find the input value, so there's nothing to delete
+            return false
+        end
+
+        if !marked
+            node_to_delete = successors[1]
+            top_level = height(node_to_delete)
+            lock(node_to_delete)
+
+            if is_marked_for_deletion(node_to_delete)
+                unlock(node_to_delete)
+                return false
+            end
+
+            marked = true
+            mark_for_deletion!(node_to_delete)
+        end
+
+        current_layer = 1
+        try
+            # Validate that predecessor and successor nodes are
+            # still connected
+            valid = true
+            while current_layer ≤ top_level && valid
+                pred = predecessors[current_layer]
+                succ = successors[current_layer]
+                lock(pred)
+
+                valid = !is_marked_for_deletion(pred) && next(pred, current_layer) == succ
+                current_layer += 1
+            end
+
+            if !valid
+                continue
+            end
+
+            # Connections validated. Disconnect predecessor nodes from the
+            # node that we're going to delete.
+            for level = 1:top_level
+                link_nodes!(predecessors[level], next(node_to_delete, level), level)
+            end
+
+            unlock(node_to_delete)
+            atomic_add!(list.length, -1)
+            return true
+        finally
+            for ii = 1:current_layer-1
+                unlock(predecessors[ii])
+            end
+        end
     end
 end
 
@@ -130,10 +190,10 @@ function find_node(list :: Skiplist{T}, val) where T
     ii = h
     while ii > 0
         next_node = next(current_node, ii)
-        if next_node ≤ val
+        if next_node < val
             current_node = next_node
         else
-            if layer_found == -1 && key(current_node) == val
+            if layer_found == -1 && key(next_node) == val
                 layer_found = ii
             end
             predecessors[ii] = current_node
