@@ -67,6 +67,7 @@ end
 
 Base.:(<)(node :: SkiplistNode, val) = !(val ≤ node)
 Base.:(<)(val, node :: SkiplistNode) = !(node ≤ val)
+Base.:(<)(node_1 :: SkiplistNode, node_2 :: SkiplistNode) = !(node_2 ≤ node_1)
 
 Base.:(<=)(node :: SkiplistNode, val) =
     is_sentinel(node) ? is_left_sentinel(node) : (key(node) ≤ val)

@@ -30,6 +30,50 @@ function Skiplist{T}(; max_height = DEFAULT_MAX_HEIGHT, p = DEFAULT_P) where T
 end
 
 #===========================
+Macros
+===========================#
+
+macro validate(predecessors, successors, node, expr)
+    quote
+        valid = true
+        level = 0
+
+        try
+            for ii = 1:height($(esc(node)))
+                level = ii
+                pred = $(esc(predecessors))[ii]
+                succ = $(esc(successors))[ii]
+                lock(pred)
+
+                valid = !is_marked_for_deletion(pred) &&
+                        !is_marked_for_deletion(succ) &&
+                        next(pred, level) == succ
+
+                if !valid
+                    break
+                end
+            end
+
+            if valid
+                # We've acquired all of the locks required by the validation
+                # process, so we can now perform the internal expression
+                $(esc(expr))
+            end
+        finally
+            for ii = 1:level
+                unlock($(esc(predecessors))[ii])
+            end
+        end
+
+        valid
+    end
+end
+
+function weak_validate(predecessors, successors)
+end
+
+
+#===========================
 Skiplist external API
 ===========================#
 
@@ -61,51 +105,33 @@ function Base.in(val, list :: Skiplist)
         !is_marked_for_deletion(successors[level_found])
 end
 
-function Base.insert!(list :: Skiplist, val)
+Base.insert!(list :: Skiplist, val) =
+    insert!(list, SkiplistNode(val; p=list.height_p, max_height=list.max_height))
+
+function Base.insert!(list :: Skiplist, node :: SkiplistNode)
     while true
-        level_found, predecessors, successors = find_node(list, val)
-        new_node = SkiplistNode(val)
+        level_found, predecessors, successors = find_node(list, node)
 
-        old_height = atomic_max!(list.height, height(new_node))
-
-        for ii = old_height+1:height(new_node)
+        # Update the list height.
+        #
+        # If the height of the list is greater than the old height, then we
+        # will need to replace the connections between the left and right
+        # sentinel nodes.
+        old_height = atomic_max!(list.height, height(node))
+        for ii = old_height+1:height(node)
             push!(predecessors, list.left_sentinel)
             push!(successors, list.right_sentinel)
         end
 
         # Acquire locks to predecessor nodes to ensure that they're still
         # connected to their corresponding successors
-        valid = true
-        level = 0
-        try
-            for ii = 1:height(new_node)
-                level = ii
-                pred = predecessors[ii]
-                succ = successors[ii]
-                lock(pred)
-
-                valid = !is_marked_for_deletion(pred) &&
-                        !is_marked_for_deletion(succ) &&
-                        next(pred, level) == succ
-                if !valid
-                    break
-                end
+        valid = @validate(predecessors, successors, node, begin
+            for ii = 1:height(node)
+                link_nodes!(predecessors[ii], node, ii)
+                link_nodes!(node, successors[ii], ii)
             end
-
-            if valid
-                # We've acquired all of the locks required to insert the new node
-                for ii = 1:height(new_node)
-                    link_nodes!(predecessors[ii], new_node, ii)
-                    link_nodes!(new_node, successors[ii], ii)
-                end
-            end
-
-            mark_fully_linked!(new_node)
-        finally
-            for jj = 1:level
-                unlock(predecessors[jj])
-            end
-        end
+            mark_fully_linked!(node)
+        end)
 
         if !valid
             continue
@@ -153,7 +179,8 @@ function Base.delete!(list :: Skiplist, val)
                 succ = successors[current_layer]
                 lock(pred)
 
-                valid = !is_marked_for_deletion(pred) && next(pred, current_layer) == succ
+                valid = !is_marked_for_deletion(pred) &&
+                         next(pred, current_layer) == succ
                 current_layer += 1
             end
 
