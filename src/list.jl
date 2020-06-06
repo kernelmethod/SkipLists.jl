@@ -60,6 +60,9 @@ macro validate(predecessors, successors, node, expr, type = :(:strong))
         level = 1
 
         try
+            # Starting from the bottom level, traverse up the height of the node
+            # and check that the $check_valid condition is true for each predecessor /
+            # successor pair.
             while valid && level < height($(esc(node)))
                 pred = $(esc(predecessors))[level]
                 succ = $(esc(successors))[level]
@@ -95,6 +98,12 @@ Base.string(list :: Skiplist) = "Skiplist(length = $(length(list)), height = $(h
 Base.show(list :: Skiplist) = println(string(list))
 Base.display(list :: Skiplist) = println(string(list))
 
+"""
+    vec(list :: Skiplist{T}) where T
+
+Convert the skip list `list` into a one-dimensional `Vector{T}` containing all of the elements
+of the skip list, sorted in ascending order.
+"""
 function Base.vec(list :: Skiplist{T}) where T
     results = Vector{T}(undef, 0)
     current_node = list.left_sentinel
@@ -189,6 +198,12 @@ function Base.delete!(list :: Skiplist, val)
         end
     end
 end
+
+# Iteration interface for Skiplist
+
+Base.iterate(list :: Skiplist) = next(list.left_sentinel, 1) |> iterate
+Base.iterate(node :: SkiplistNode) = is_right_sentinel(node) ? nothing : (key(node), next(node, 1))
+Base.iterate(list :: Skiplist, node :: SkiplistNode) = iterate(node)
 
 #===========================
 Skiplist internal API

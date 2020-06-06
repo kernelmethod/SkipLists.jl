@@ -35,6 +35,21 @@ using Random, Skiplists, Test
         @test length(list) == 20
     end
 
+    @testset "Iterate over Skiplist" begin
+        vals = shuffle(1:100)
+        list = Skiplist{Int64}()
+        for ii in vals
+            insert!(list, ii)
+        end
+
+        success = true
+        for (x1, x2) in zip(sort(vals), list)
+            success = success && x1 == x2
+        end
+
+        @test success
+    end
+
     @testset "Test membership in Skiplist" begin
         list = Skiplist{Int64}()
         @test 1 ∉ list
