@@ -82,4 +82,27 @@ using Random, Skiplists, Test
         @test vec(list) == []
         @test length(list) == 0
     end
+
+    @testset "Add duplicate elements to Skiplist" begin
+        list = Skiplist{Int64}()
+        for ii = 1:2
+            insert!(list, 1)
+            insert!(list, 2)
+        end
+
+        @test length(list) == 4
+        @test vec(list) == [1, 1, 2, 2]
+        @test 1 ∈ list && 2 ∈ list
+
+        delete!(list, 1)
+        delete!(list, 2)
+        @test length(list) == 2
+        @test vec(list) == [1, 2]
+        @test 1 ∈ list && 2 ∈ list
+
+        delete!(list, 1)
+        delete!(list, 2)
+        @test length(list) == 0
+        @test vec(list) == []
+    end
 end
