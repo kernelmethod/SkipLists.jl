@@ -55,7 +55,10 @@ end
 
 function Base.in(val, list :: Skiplist)
     level_found, predecessors, successors = find_node(list, val)
-    level_found != -1
+
+    level_found != -1                            &&
+        is_fully_linked(successors[level_found]) &&
+        !is_marked_for_deletion(successors[level_found])
 end
 
 function Base.insert!(list :: Skiplist, val)
