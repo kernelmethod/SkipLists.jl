@@ -23,6 +23,7 @@ using Random, Skiplists, Test
         end
 
         @test vec(list) == collect(1:20)
+        @test length(list) == 20
 
         # Insert shuffled values
         list = Skiplist{Int64}()
@@ -31,5 +32,6 @@ using Random, Skiplists, Test
         end
 
         @test vec(list) == collect(1:20)
+        @test length(list) == 20
     end
 end

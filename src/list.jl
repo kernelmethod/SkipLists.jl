@@ -5,6 +5,7 @@ Primary code for the implementation of Skiplist
 =================================================#
 
 using Base.Threads
+using Logging
 
 #===========================
 Constructors
@@ -50,6 +51,7 @@ end
 
 function Base.insert!(list :: Skiplist, val)
     while true
+        @debug "Performing insert! for value = $(val)"
         found, predecessors, successors = find_node(list, val)
         new_node = SkiplistNode(val)
 
@@ -60,30 +62,47 @@ function Base.insert!(list :: Skiplist, val)
             push!(successors, list.right_sentinel)
         end
 
-        # TODO: make thread-safe
-        for ii = 1:height(new_node)
-            link_nodes!(predecessors[ii], new_node, ii)
-            link_nodes!(new_node, successors[ii], ii)
+        # Acquire locks to predecessor nodes to ensure that they're still
+        # connected to their corresponding successors
+        valid = true
+        level = 0
+        try
+            for ii = 1:height(new_node)
+                level = ii
+                pred = predecessors[ii]
+                succ = successors[ii]
+                lock(pred)
+
+                @debug "[insert!(list, $(val))] Acquired lock for level $(level)"
+
+                valid = !is_marked(pred) &&
+                        !is_marked(succ) &&
+                        next(pred, level) == succ
+                if !valid
+                    break
+                end
+            end
+
+            if valid
+                # We've acquired all of the locks required to insert the new node
+                for ii = 1:height(new_node)
+                    link_nodes!(predecessors[ii], new_node, ii)
+                    link_nodes!(new_node, successors[ii], ii)
+                end
+            end
+        finally
+            for jj = 1:level
+                @debug "[insert!(list, $(val))] Released locks for level $(jj)"
+                unlock(predecessors[jj])
+            end
+        end
+
+        if !valid
+            continue
         end
 
         atomic_add!(list.length, 1)
         break
-
-        #=
-        # Grab locks for all predecessor and successor nodes and confirm that
-        # they're still connected
-        layer = 0
-        for (pred, succ) in zip(predecessors, successors)
-            layer += 1
-            lock(pred)
-            lock(succ)
-
-            # Validate that the predecessor node is still connected to
-            # the successor
-            if next(pred, layer) != succ
-            end
-        end
-        =#
     end
 end
 
@@ -116,8 +135,3 @@ function find_node(list :: Skiplist{T}, val) where T
 
     layer_found, predecessors, successors
 end
-
-
-
-
-

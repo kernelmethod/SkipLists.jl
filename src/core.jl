@@ -21,9 +21,11 @@ const IS_SENTINEL = FLAG_IS_LEFT_SENTINEL | FLAG_IS_RIGHT_SENTINEL
 Typedefs
 ===========================#
 
-struct SkiplistNode{T}
+mutable struct SkiplistNode{T}
     val :: T
     next :: Vector{SkiplistNode{T}}
+    marked_for_deletion :: Bool
+    fully_linked :: Condition
     flags :: UInt8
     lock :: ReentrantLock
 end
@@ -45,8 +47,19 @@ abstract type RightSentinel{T} end
 Simple function definitions
 ===========================#
 
-Base.lock(node :: SkiplistNode) = lock(node.lock)
-Base.unlock(node :: SkiplistNode) = unlock(node.lock)
+function Base.lock(node :: SkiplistNode)
+    # Sentinel nodes are immutable, so we don't lock if we encounter them
+    if !is_sentinel(node)
+        lock(node.lock)
+    end
+end
+
+function Base.unlock(node :: SkiplistNode)
+    # Sentinel nodes are immutable, so we don't lock if we encounter them
+    if !is_sentinel(node)
+        unlock(node.lock)
+    end
+end
 
 #===========================
 Macros

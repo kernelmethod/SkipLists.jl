@@ -20,7 +20,7 @@ function SkiplistNode{T}(val, height; flags = 0x0) where T
     next = Vector{SkiplistNode{T}}(undef, height)
     lock = ReentrantLock()
 
-    SkiplistNode{T}(val, next, flags, lock)
+    SkiplistNode{T}(val, next, false, Condition(), flags, lock)
 end
 
 LeftSentinel{T}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where T =
@@ -35,6 +35,8 @@ External API
 @inline height(node :: SkiplistNode) = length(node.next)
 @inline key(node :: SkiplistNode) = node.val
 @inline key(val) = val
+
+is_marked(node :: SkiplistNode) = node.marked_for_deletion
 
 Base.string(node :: SkiplistNode) =
     "SkiplistNode($(key(node)), height = $(height(node)))"

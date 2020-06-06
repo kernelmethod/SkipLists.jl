@@ -5,3 +5,4 @@ using Logging
 
 include("test_node.jl")
 include("test_list.jl")
+include("test_list_concurrency.jl")
