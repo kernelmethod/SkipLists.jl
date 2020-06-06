@@ -85,6 +85,10 @@ function Base.:(<=)(node_1 :: SkiplistNode, node_2 :: SkiplistNode)
     end
 end
 
+Base.:(==)(node :: SkiplistNode, val) = is_sentinel(node) ? false : key(node) == val
+Base.:(==)(val, node :: SkiplistNode) = (node == val)
+Base.:(==)(node_1 :: SkiplistNode, node_2 :: SkiplistNode) = (node_1 === node_2)
+
 # Node links
 
 function link_nodes!(src, dst, level)

@@ -223,7 +223,7 @@ function find_node(list :: Skiplist{T}, val) where T
         if next_node < val
             current_node = next_node
         else
-            if layer_found == -1 && key(next_node) == val
+            if layer_found == -1 && next_node == val
                 layer_found = ii
             end
             predecessors[ii] = current_node
