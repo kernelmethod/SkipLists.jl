@@ -1,6 +1,6 @@
 #=======================================================
 
-Tests for the Skiplist type
+Tests for the Skiplist and SkiplistSet types
 
 =======================================================#
 
@@ -13,6 +13,10 @@ using Random, Skiplists, Test
         list = Skiplist{Int64}()
         @test height(list) == 1
         @test length(list) == 0
+
+        # An error should be raised if we attempt to construct a Skiplist in an
+        # invalid mode
+        @test_throws ErrorException Skiplist{Int64,:Foo}()
     end
 
     @testset "Insert into Skiplist" begin
@@ -22,7 +26,7 @@ using Random, Skiplists, Test
             insert!(list, ii)
         end
 
-        @test vec(list) == collect(1:20)
+        @test collect(list) == collect(1:20)
         @test length(list) == 20
 
         # Insert shuffled values
@@ -31,8 +35,18 @@ using Random, Skiplists, Test
             insert!(list, ii)
         end
 
-        @test vec(list) == collect(1:20)
+        @test collect(list) == collect(1:20)
         @test length(list) == 20
+
+        # All of the nodes should be marked as 'fully linked'
+        current_node = list.left_sentinel
+        success = Skiplists.is_fully_linked(current_node)
+        while success && !Skiplists.is_right_sentinel(current_node)
+            current_node = Skiplists.next(current_node, 1)
+            success = Skiplists.is_fully_linked(current_node)
+        end
+
+        @test success
     end
 
     @testset "Iterate over Skiplist" begin
@@ -67,19 +81,19 @@ using Random, Skiplists, Test
         delete!(list, 1)
         @test length(list) == 2
         @test 1 ∉ list
-        @test vec(list) == collect(2:3)
+        @test collect(list) == collect(2:3)
 
         delete!(list, 2)
         @test length(list) == 1
         @test 2 ∉ list
-        @test vec(list) == collect(3:3)
+        @test collect(list) == collect(3:3)
 
         delete!(list, 3)
         @test length(list) == 0
         @test 3 ∉ list
 
         delete!(list, 0)
-        @test vec(list) == []
+        @test collect(list) == []
         @test length(list) == 0
     end
 
@@ -91,18 +105,73 @@ using Random, Skiplists, Test
         end
 
         @test length(list) == 4
-        @test vec(list) == [1, 1, 2, 2]
+        @test collect(list) == [1, 1, 2, 2]
         @test 1 ∈ list && 2 ∈ list
 
         delete!(list, 1)
         delete!(list, 2)
         @test length(list) == 2
-        @test vec(list) == [1, 2]
+        @test collect(list) == [1, 2]
         @test 1 ∈ list && 2 ∈ list
 
         delete!(list, 1)
         delete!(list, 2)
         @test length(list) == 0
-        @test vec(list) == []
+        @test collect(list) == []
+    end
+end
+
+@testset "SkiplistSet tests" begin
+    Random.seed!(0)
+
+    @testset "Insert into SkiplistSet" begin
+        set = SkiplistSet{Int64}()
+        for ii = 1:10
+            insert!(set, ii)
+        end
+
+        @test length(set) == 10
+        @test collect(set) == 1:10
+
+        # If we now try to insert a duplicate element into the set, it shouldn't
+        # have any effect
+        for ii = shuffle(1:10)
+            insert!(set, ii)
+        end
+
+        @test length(set) == 10
+        @test collect(set) == 1:10
+    end
+
+    @testset "Remove from SkiplistSet" begin
+        set = SkiplistSet{Int64}()
+        orig = 1:100
+
+        for ii in shuffle(orig)
+            # Insert every element twice
+            insert!(set, ii)
+            insert!(set, ii)
+        end
+
+        @test length(set) == length(orig)
+        @test collect(set) == sort(orig)
+
+        # Remove all of the even elements
+        to_remove = filter(iseven, orig)
+        remaining = filter(isodd, orig) |> sort
+        for ii in shuffle(to_remove)
+            delete!(set, ii)
+            delete!(set, ii)
+        end
+
+        @test length(set) == length(remaining)
+        @test collect(set) == remaining
+
+        # Test membership of remaining elements
+        success = true
+        for ii in remaining
+            success = success && ii ∈ set
+        end
+        @test success
     end
 end

@@ -12,6 +12,6 @@ include("list.jl")
 Exports
 ===========================#
 
-export Skiplist, height
+export Skiplist, SkiplistSet, height
 
 end # module

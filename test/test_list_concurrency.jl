@@ -32,13 +32,13 @@ using Base.Threads: @spawn
         wait.(tasks)
         @test length(list) == length(orig)
 
-        vl = vec(list)
+        vl = collect(list)
         @test length(vl) == length(orig)
 
         success = (vl .== sort(orig))
         if !all(success)
             @error "Failed Skiplist insertion tests"
-            @error "vec(list) != sort(orig) in the following indices: $(eachindex(vl)[success])"
+            @error "collect(list) != sort(orig) in the following indices: $(eachindex(vl)[success])"
         end
 
         @test all(success)
@@ -52,7 +52,7 @@ using Base.Threads: @spawn
             insert!(list, ii)
         end
 
-        @test vec(list) == orig
+        @test collect(list) == orig
 
         # Delete all of the even numbers in separate threads
         to_delete = filter(iseven, shuffle(orig))
@@ -70,7 +70,7 @@ using Base.Threads: @spawn
         end
 
         wait.(tasks)
-        @test vec(list) == filter(isodd, orig)
+        @test collect(list) == filter(isodd, orig)
         @test length(list) == filter(isodd, orig) |> length
     end
 
@@ -109,7 +109,7 @@ using Base.Threads: @spawn
 
         wait.(tasks)
         @test length(list) == length(expected)
-        @test vec(list) == expected
+        @test collect(list) == expected
     end
 end
 
