@@ -49,19 +49,8 @@ SkiplistSet{T} = Skiplist{T,:Set}
 Simple function definitions
 ===========================#
 
-function Base.lock(node :: SkiplistNode)
-    # Sentinel nodes are immutable, so we don't lock if we encounter them
-    if !is_sentinel(node)
-        lock(node.lock)
-    end
-end
-
-function Base.unlock(node :: SkiplistNode)
-    # Sentinel nodes are immutable, so we don't lock if we encounter them
-    if !is_sentinel(node)
-        unlock(node.lock)
-    end
-end
+Base.lock(node :: SkiplistNode) = lock(node.lock)
+Base.unlock(node :: SkiplistNode) = unlock(node.lock)
 
 #===========================
 Macros
