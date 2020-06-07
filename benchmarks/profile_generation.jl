@@ -4,15 +4,20 @@ Profiling for Skiplist generation.
 
 ============================================#
 
+pushfirst!(LOAD_PATH, joinpath(@__DIR__, ".."))
+
 using Profile
 using Random
+using Skiplists
 
-Profile.init(; delay=0.001)
+Profile.init(; delay=0.0025)
 
 const OUTPUT_PATH = joinpath("results", "profile_generation.txt")
 const N = 1_000_000
 
 list = Skiplist{Int64}()
+Profile.clear_malloc_data()
+
 for ii = shuffle(1:N)
     @profile insert!(list, ii)
 end
