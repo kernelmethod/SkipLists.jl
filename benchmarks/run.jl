@@ -5,15 +5,12 @@ Pkg.activate(); Pkg.instantiate();
 
 pushfirst!(LOAD_PATH, joinpath(@__DIR__, ".."))
 
-using Skiplists
+using SkipLists
 using BenchmarkTools
 
-# Run all benchmarks for Skiplists contained in this directory
+# Run all benchmarks for the module that are contained in this directory
 
 include("benchmark_generation.jl")
 display(benchmark_generate_vector())
-display(benchmark_generate_skiplist(ConcurrentSkiplist))
-
-# include("benchmark_insertion.jl")
-# benchmark_insertion(Skiplist)
-# benchmark_insertion(SkiplistSet)
+display(benchmark_generate_skiplist(SkipList))
+display(benchmark_generate_skiplist(ConcurrentSkipList))

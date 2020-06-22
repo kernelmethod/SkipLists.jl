@@ -7,7 +7,7 @@ a skip list
 
 using BenchmarkTools
 using Random
-using Skiplists
+using SkipLists
 using UUIDs
 
 function generate_data(N)
@@ -27,9 +27,19 @@ function benchmark_generate_vector(; N = 10_000, kws...)
     @benchmark $gen_list(X) setup=(X = generate_data($N))
 end
 
-function benchmark_generate_skiplist(::Type{ConcurrentSkiplist}; N = 10_000, kws...)
+function benchmark_generate_skiplist(::Type{SkipList}; N = 10_000, kws...)
     function gen_list(X::Vector{T}) where T
-        list = ConcurrentSkiplist{T}(; kws...)
+        list = SkipList{T}(; kws...)
+        for ii in X
+            insert!(list, ii)
+        end
+    end
+    @benchmark $gen_list(X) setup=(X = generate_data($N))
+end
+
+function benchmark_generate_skiplist(::Type{ConcurrentSkipList}; N = 10_000, kws...)
+    function gen_list(X::Vector{T}) where T
+        list = ConcurrentSkipList{T}(; kws...)
         for ii in X
             insert!(list, ii)
         end

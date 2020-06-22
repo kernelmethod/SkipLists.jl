@@ -8,18 +8,20 @@ pushfirst!(LOAD_PATH, joinpath(@__DIR__, ".."))
 
 using Profile
 using Random
-using Skiplists
+using SkipLists
 
-Profile.init(; delay=0.0025)
+Profile.init(; delay=0.001)
 
 const OUTPUT_PATH = joinpath("results", "profile_generation.txt")
 const N = 1_000_000
 
-list = Skiplist{Int64}()
 Profile.clear_malloc_data()
 
-for ii = shuffle(1:N)
-    @profile insert!(list, ii)
+for ii = 1:5
+    list = SkipList{Int64}()
+    for jj = shuffle(1:N)
+        @profile insert!(list, jj)
+    end
 end
 
 open(OUTPUT_PATH, "w") do f
