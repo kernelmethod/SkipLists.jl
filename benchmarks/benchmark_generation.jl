@@ -1,7 +1,7 @@
 #============================================
 
 Benchmarks for generating and performing initial insertions into
-a Skiplist
+a skip list
 
 ============================================#
 
@@ -27,9 +27,9 @@ function benchmark_generate_vector(; N = 10_000, kws...)
     @benchmark $gen_list(X) setup=(X = generate_data($N))
 end
 
-function benchmark_generate_skiplist(::Type{Skiplist}; N = 10_000, kws...)
+function benchmark_generate_skiplist(::Type{ConcurrentSkiplist}; N = 10_000, kws...)
     function gen_list(X::Vector{T}) where T
-        list = Skiplist{T}(; kws...)
+        list = ConcurrentSkiplist{T}(; kws...)
         for ii in X
             insert!(list, ii)
         end

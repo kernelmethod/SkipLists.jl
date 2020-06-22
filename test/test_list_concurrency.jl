@@ -1,18 +1,18 @@
 #=======================================================
 
-Concurrency tests for the Skiplist type
+Concurrency tests for the ConcurrentSkipList type
 
 =======================================================#
 
-using Random, Skiplists, Test
+using Random, SkipLists, Test
 using Base.Iterators: partition
 using Base.Threads: @spawn
 
-@testset "SkiplistNode concurrency tests" begin
+@testset "ConcurrentSkipList concurrency tests" begin
     Random.seed!(0)
 
-    @testset "Multithreaded insert into Skiplist" begin
-        list = Skiplist{Int64}()
+    @testset "Multithreaded insert into ConcurrentSkipList" begin
+        list = ConcurrentSkipList{Int64}()
         orig = collect(1:5000)
         to_insert = orig |> copy |> shuffle
         to_insert = partition(to_insert, 10)
@@ -37,15 +37,15 @@ using Base.Threads: @spawn
 
         success = (vl .== sort(orig))
         if !all(success)
-            @error "Failed Skiplist insertion tests"
+            @error "Failed ConcurrentSkipList insertion tests"
             @error "collect(list) != sort(orig) in the following indices: $(eachindex(vl)[success])"
         end
 
         @test all(success)
     end
 
-    @testset "Multithreaded delete from Skiplist" begin
-        list = Skiplist{Int64}()
+    @testset "Multithreaded delete from ConcurrentSkipList" begin
+        list = ConcurrentSkipList{Int64}()
 
         orig = collect(1:5000)
         for ii in orig
@@ -74,9 +74,9 @@ using Base.Threads: @spawn
         @test length(list) == filter(isodd, orig) |> length
     end
 
-    @testset "Multithreaded inserts / deletes in Skiplist" begin
-        # Pre-populate the Skiplist
-        list = Skiplist{Int64}()
+    @testset "Multithreaded inserts / deletes in ConcurrentSkipList" begin
+        # Pre-populate the skip list
+        list = ConcurrentSkipList{Int64}()
 
         orig = collect(1:5000)
         for ii in orig

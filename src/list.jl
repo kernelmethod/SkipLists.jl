@@ -1,39 +1,110 @@
 #================================================
 
-Primary code for the implementation of Skiplist
+Primary code for the implementation of SkipList
 
 =================================================#
 
 using Base.Threads
-using Logging
 
 #===========================
-Constructors
+Typedefs
 ===========================#
 
-Skiplist{T}(args...; kws...) where T = Skiplist{T,:List}(args...; kws...)
+mutable struct SkipList{T,M} <: AbstractSkipList{T,M}
+    height_p::Float64
+    max_height::Int64
+    node_capacity::Int64
 
-function Skiplist{T,M}(; max_height = DEFAULT_MAX_HEIGHT, p = DEFAULT_P) where {T,M}
+    left_sentinel::Node{T,M}
+    right_sentinel::Node{T,M}
+    height::Int64
+    length::Int64
+end
+
+struct ConcurrentSkipList{T,M} <: AbstractSkipList{T,M}
+    height_p::Float64
+    max_height::Int64
+
+    left_sentinel::ConcurrentNode{T,M}
+    right_sentinel::ConcurrentNode{T,M}
+    height::Atomic{Int64}
+    length::Atomic{Int64}
+end
+
+SkipListSet{T} = SkipList{T,:Set}
+ConcurrentSkipListSet{T} = ConcurrentSkipList{T,:Set}
+
+#===========================
+Shared constructors
+===========================#
+
+for list_type in (:SkipList, :ConcurrentSkipList)
+    @eval $list_type{T}(args...; kws...) where T = $list_type{T,:List}(args...; kws...)
+end
+
+function _check_mode(M)
     if M != :List && M != :Set
-        "Skiplist mode $M is not recognized. Valid options are :List and :Set" |>
+        "SkipList mode $M is not recognized. Valid options are :List and :Set" |>
         ErrorException |>
         throw
     end
+end
 
-    left_sentinel = LeftSentinel{T,M}(; max_height=max_height)
-    right_sentinel = RightSentinel{T,M}(; max_height=max_height)
+#===========================
+SkipList constructors
+===========================#
+
+function SkipList{T,M}(;
+    max_height = DEFAULT_MAX_HEIGHT,
+    p = DEFAULT_P,
+    node_capacity = DEFAULT_NODE_CAPACITY,
+) where {T,M}
+
+    _check_mode(M)
+
+    left_sentinel = LeftSentinel{T,M}(; max_height=max_height, capacity=node_capacity)
+    right_sentinel = RightSentinel{T,M}(; max_height=max_height, capacity=node_capacity)
+    height = 1
+    length = 0
 
     for ii = 1:max_height
         link_nodes!(left_sentinel, right_sentinel, ii)
     end
 
-    Skiplist{T,M}(
+    SkipList{T,M}(
+        p,
+        max_height,
+        node_capacity,
+        left_sentinel,
+        right_sentinel,
+        height,
+        length
+    )
+end
+
+#===========================
+ConcurrentSkipList constructors
+===========================#
+
+function ConcurrentSkipList{T,M}(; max_height = DEFAULT_MAX_HEIGHT, p = DEFAULT_P) where {T,M}
+    _check_mode(M)
+
+    left_sentinel = ConcurrentLeftSentinel{T,M}(; max_height=max_height)
+    right_sentinel = ConcurrentRightSentinel{T,M}(; max_height=max_height)
+    height = Atomic{Int64}(1)
+    length = Atomic{Int64}(0)
+
+    for ii = 1:max_height
+        link_nodes!(left_sentinel, right_sentinel, ii)
+    end
+
+    ConcurrentSkipList{T,M}(
         p,
         max_height,
         left_sentinel,
         right_sentinel,
-        Atomic{Int64}(1),
-        Atomic{Int64}(0),
+        height,
+        length
     )
 end
 
@@ -96,17 +167,127 @@ macro validate(predecessors, successors, node, expr, type = :(:strong))
 end
 
 #===========================
-Skiplist external API
+Shared AbstractSkipList API
 ===========================#
 
-height(list :: Skiplist) = list.height[]
-Base.length(list :: Skiplist) = list.length[]
+function Base.show(io::IO, list::AbstractSkipList)
+    write(io, string(list))
+end
 
-Base.string(list :: Skiplist) = "Skiplist(length = $(length(list)), height = $(height(list)))"
-Base.show(list :: Skiplist) = println(string(list))
-Base.display(list :: Skiplist) = println(string(list))
+Base.string(list::L) where {L <: AbstractSkipList} =
+    "$L(length = $(length(list)), height = $(height(list)))"
 
-function Base.in(val, list :: Skiplist)
+max_height(list::AbstractSkipList) = list.max_height
+
+height_p(list::AbstractSkipList) = list.height_p
+
+#===========================
+SkipList external API
+===========================#
+
+height(list::SkipList) = list.height
+
+Base.length(list::SkipList) = list.length
+
+node_capacity(list::SkipList) = list.node_capacity
+
+function Base.insert!(list::SkipList, val)
+    level_found, predecessors, successors = find_node(list, val)
+
+    # We insert into the predecessor node from our search that sits in the
+    # first level of the skip list. If that node is full, we must split it
+    # into two lists.
+    insertion_node = predecessors[1]
+
+    insertion_node = begin
+        if isfull(insertion_node)
+            # Insertion would overflow the node, so we must first split it into
+            # two nodes.
+            old_node, new_node = split!(
+                insertion_node;
+                max_height=max_height(list),
+                capacity=node_capacity(list),
+                p=height_p(list),
+            )
+
+            # If the new node has height greater than the old height of the list,
+            # we must increase the size of the list.
+            if length(predecessors) < height(new_node)
+                resize!(predecessors, height(new_node))
+                resize!(successors, height(new_node))
+                for ii = height(list)+1:height(new_node)
+                    predecessors[ii] = list.left_sentinel
+                    successors[ii] = list.right_sentinel
+                end
+
+                list.height = height(new_node)
+            end
+
+            # Insert the new node between the predecessor / successor nodes.
+            interpolate_node!(predecessors, successors, new_node)
+
+            # We insert into the right node if its key is ≤ the insertion value;
+            # otherwise, we insert into the left node.
+            is_sentinel(old_node) || new_node ≤ val ? new_node : old_node
+        else
+            insertion_node
+        end
+    end
+
+    insert!(insertion_node, val)
+    list.length += 1
+end
+
+function Base.in(val, list::SkipList)
+    level_found, predecessors, successors = find_node(list, val; right_if_member = false)
+    level_found != NODE_NOT_FOUND
+end
+
+function Base.delete!(list::SkipList, val)
+    level_found, predecessors, successors = find_node(list, val; right_if_member = false)
+    if level_found == NODE_NOT_FOUND
+        return nothing
+    end
+
+    deletion_node = successors[1]
+    result = delete!(deletion_node, val)
+
+    # If the node is empty, we must delete it and remove it from the list
+    if isempty(deletion_node) && !is_sentinel(deletion_node)
+        for ii = 1:height(deletion_node)
+            link_nodes!(predecessors[ii], next(deletion_node, ii), ii)
+        end
+    end
+
+    list.length -= 1
+end
+
+# Implementation of the iteration interface for SkipList
+
+Base.iterate(list::SkipList) = Base.iterate(list, (list.left_sentinel, 1))
+
+function Base.iterate(list::SkipList, state)
+    node, ii = state
+
+    if length(node) < ii
+        if is_right_sentinel(node)
+            nothing
+        else
+            iterate(list, (next(node, 1), 1))
+        end
+    else
+        node.vals[ii], (node, ii+1)
+    end
+end
+
+#===========================
+ConcurrentSkipList external API
+===========================#
+
+height(list::ConcurrentSkipList) = list.height[]
+Base.length(list::ConcurrentSkipList) = list.length[]
+
+function Base.in(val, list::ConcurrentSkipList)
     level_found, predecessors, successors = find_node(list, val)
 
     level_found != -1                            &&
@@ -114,10 +295,10 @@ function Base.in(val, list :: Skiplist)
         !is_marked_for_deletion(successors[level_found])
 end
 
-Base.insert!(list :: Skiplist{_,M}, val) where {_,M} =
-    insert!(list, SkiplistNode{M}(val; p=list.height_p, max_height=list.max_height))
+Base.insert!(list::ConcurrentSkipList{T,M}, val) where {T,M} =
+    insert!(list, ConcurrentNode{T,M}(val; p=list.height_p, max_height=list.max_height))
 
-@generated function Base.insert!(list :: Skiplist{T,M}, node :: SkiplistNode) where {T,M}
+@generated function Base.insert!(list::ConcurrentSkipList{T,M}, node::ConcurrentNode) where {T,M}
     local check_exists = if M == :Set
         quote
             if level_found != -1
@@ -178,14 +359,14 @@ Base.insert!(list :: Skiplist{_,M}, val) where {_,M} =
     end
 end
 
-function Base.delete!(list :: Skiplist, val)
+function Base.delete!(list::ConcurrentSkipList, val)
     marked = false
     node_to_delete = list.left_sentinel
 
     while true
         level_found, predecessors, successors = find_node(list, val)
 
-        if !marked && (level_found == -1 || !ok_to_delete(successors[1], level_found))
+        if !marked && (level_found == NODE_NOT_FOUND || !ok_to_delete(successors[1], level_found))
             # We didn't find the input value, so there's nothing to delete
             return false
         end
@@ -222,31 +403,86 @@ function Base.delete!(list :: Skiplist, val)
     end
 end
 
-# Iteration interface for Skiplist
+# Iteration interface for ConcurrentSkipList
 
-Base.iterate(list :: Skiplist) = next(list.left_sentinel, 1) |> iterate
-Base.iterate(node :: SkiplistNode) = is_right_sentinel(node) ? nothing : (key(node), next(node, 1))
-Base.iterate(list :: Skiplist, node :: SkiplistNode) = iterate(node)
+Base.iterate(list::ConcurrentSkipList) = next(list.left_sentinel, 1) |> iterate
+Base.iterate(node::ConcurrentNode) = is_right_sentinel(node) ? nothing : (key(node), next(node, 1))
+Base.iterate(list::ConcurrentSkipList, node::ConcurrentNode) = iterate(node)
 
 #===========================
-Skiplist internal API
+ConcurrentSkipList internal API
 ===========================#
 
-function find_node(list :: Skiplist{T}, val) where T
-    predecessors = Vector{SkiplistNode{T}}(undef, height(list))
-    successors = Vector{SkiplistNode{T}}(undef, height(list))
+"""
+Traverse through a skip list, searching for the input value. Returns
 
-    level_found = -1
+- `level_found`: the first level on which a node was found containing the
+  input value.
+- `predecessors`: a list of nodes with the property that `predecessors[ii]`
+  is the rightmost node whose key is `≤ val` in the `ii`th level.
+- `successors`: a list of the nodes that come after the predecessor nodes in
+  the `predecessors` list.
+"""
+function find_node(list::SkipList{T,M}, val; right_if_member = true) where {T,M}
+    list_height = height(list)
+    predecessors = Vector{Node{T,M}}(undef, list_height)
+    successors = Vector{Node{T,M}}(undef, list_height)
+
+    level_found = NODE_NOT_FOUND
+
+    # If `right_if_member == false`, then we don't go to the right if val ∈ next_node
+    # on a given level as we traverse the skip list. Otherwise, we continue traversing
+    # to the right as long as val < next_node
+    go_right_condition = if !right_if_member
+        next_node -> val ∉ next_node && next_node < val
+    else
+        next_node -> next_node < val
+    end
 
     current_node = list.left_sentinel
-    for ii = height(list):-1:1
+    for ii = list_height:-1:1
+        # Move to the right until we reach a node whose key is
+        # greater than the value we're searching for
+        next_node = next(current_node, ii)
+        while go_right_condition(next_node)
+            current_node = next_node
+            next_node = next(current_node, ii)
+        end
+
+        # Note to future self: trying to figure out how to delete node. Need
+        # to reconsider the < inequality when doing search
+
+        if level_found == NODE_NOT_FOUND
+            if (right_if_member || is_left_sentinel(current_node)) && val ∈ current_node
+                level_found = ii
+            elseif !right_if_member && val ∈ next_node
+                level_found = ii
+            end
+        end
+        predecessors[ii] = current_node
+        successors[ii] = next_node
+    end
+
+    level_found, predecessors, successors
+end
+
+
+function find_node(list::ConcurrentSkipList{T,M}, val) where {T,M}
+    list_height = height(list)
+    predecessors = Vector{ConcurrentNode{T,M}}(undef, list_height)
+    successors = Vector{ConcurrentNode{T,M}}(undef, list_height)
+
+    level_found = NODE_NOT_FOUND
+
+    current_node = list.left_sentinel
+    for ii = list_height:-1:1
         next_node = next(current_node, ii)
         while next_node < val
             current_node = next_node
             next_node = next(current_node, ii)
         end
 
-        if level_found == -1 && next_node == val
+        if level_found == NODE_NOT_FOUND && next_node == val
             level_found = ii
         end
         predecessors[ii] = current_node
@@ -255,3 +491,4 @@ function find_node(list :: Skiplist{T}, val) where T
 
     level_found, predecessors, successors
 end
+

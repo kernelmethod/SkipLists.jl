@@ -1,4 +1,4 @@
-module Skiplists
+module SkipLists
 
 #===========================
 Includes
@@ -12,6 +12,7 @@ include("list.jl")
 Exports
 ===========================#
 
-export Skiplist, SkiplistSet, height
+export ConcurrentSkipList, ConcurrentSkipListSet, height
+export SkipList, SkipListSet
 
 end # module

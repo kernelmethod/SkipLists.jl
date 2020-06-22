@@ -1,93 +1,140 @@
 #================================================
 
-Primary code for the implementation of SkiplistNode
+Primary code for the implementation of ConcurrentNode
 
 =================================================#
 
 using Base.Threads
 
 #===========================
-Constructors
+Type definitions
 ===========================#
 
-SkiplistNode{M}(val :: T; kws...) where {T,M} =
-    SkiplistNode{T,M}(val; kws...)
-
-SkiplistNode{M}(val :: T, height; kws...) where {T,M} =
-    SkiplistNode{T,M}(val, height; kws...)
-
-SkiplistNode{T,M}(val; p = DEFAULT_P, max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M} =
-    SkiplistNode{T,M}(val, random_height(p; max_height=max_height); kws...)
-
-function SkiplistNode{T,M}(val, height; flags = 0x0, max_height = DEFAULT_MAX_HEIGHT) where {T,M}
-    height = min(height, max_height)
-    next = Vector{SkiplistNode{T}}(undef, height)
-    lock = ReentrantLock()
-
-    SkiplistNode{T,M}(val, next, false, false, flags, lock)
+struct Node{T,M} <: AbstractNode{T,M}
+    vals::Vector{T}
+    next::Vector{Node{T,M}}
+    capacity::Int64
+    flags::UInt8
 end
 
-function LeftSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M}
-    node = SkiplistNode{T,M}(zero(T), max_height; flags = FLAG_IS_LEFT_SENTINEL, kws...)
+struct ConcurrentNode{T,M} <: AbstractNode{T,M}
+    val::T
+    next::Vector{ConcurrentNode{T,M}}
+    marked_for_deletion::Atomic{Bool}
+    fully_linked::Atomic{Bool}
+    flags::UInt8
+    lock::ReentrantLock
+end
+
+abstract type LeftSentinel{T,M} end
+abstract type RightSentinel{T,M} end
+abstract type ConcurrentLeftSentinel{T,M} end
+abstract type ConcurrentRightSentinel{T,M} end
+
+#===========================
+Shared AbstractNode constructors
+===========================#
+
+for dtype in (:Node, :ConcurrentNode)
+    @eval begin
+        $dtype{M}(val; kws...) where {T,M} =
+            $dtype{eltype(val),M}(val; kws...)
+
+        $dtype{M}(val, height; kws...) where {T,M} =
+            $dtype{eltype(val),M}(val, height; kws...)
+
+        $dtype{T,M}(val; p = DEFAULT_P, max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M} =
+            $dtype{T,M}(val, random_height(p; max_height=max_height); kws...)
+    end
+end
+
+#===========================
+Node constructors
+===========================#
+
+function Node{T,M}(
+    vals,
+    height;
+    flags = 0x0,
+    capacity = DEFAULT_NODE_CAPACITY,
+    max_height = DEFAULT_MAX_HEIGHT
+) where {T,M}
+
+    height = min(height, max_height)
+    next = Vector{Node{T,M}}(undef, height)
+    Node{T,M}(vals, next, capacity, flags)
+end
+
+LeftSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M} =
+    Node{T,M}(Vector{T}(undef,0), max_height; flags = FLAG_IS_LEFT_SENTINEL, kws...)
+
+RightSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M} =
+    Node{T,M}(Vector{T}(undef,0), max_height; flags = FLAG_IS_RIGHT_SENTINEL, kws...)
+
+#===========================
+ConcurrentNode constructors
+===========================#
+
+function ConcurrentNode{T,M}(val, height; flags = 0x0, max_height = DEFAULT_MAX_HEIGHT) where {T,M}
+    height = min(height, max_height)
+    next = Vector{ConcurrentNode{T,M}}(undef, height)
+    lock = ReentrantLock()
+
+    fully_linked = Atomic{Bool}(false)
+    marked_for_deletion = Atomic{Bool}(false)
+
+    ConcurrentNode{T,M}(val, next, fully_linked, marked_for_deletion, flags, lock)
+end
+
+function ConcurrentLeftSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M}
+    node = ConcurrentNode{T,M}(zero(T), max_height; flags = FLAG_IS_LEFT_SENTINEL, kws...)
     mark_fully_linked!(node)
     node
 end
 
-function RightSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M}
-    node = SkiplistNode{T,M}(zero(T), max_height; flags = FLAG_IS_RIGHT_SENTINEL, kws...)
+function ConcurrentRightSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M}
+    node = ConcurrentNode{T,M}(zero(T), max_height; flags = FLAG_IS_RIGHT_SENTINEL, kws...)
     mark_fully_linked!(node)
     node
 end
 
 #===========================
-External API
+Shared AbstractNode API
 ===========================#
 
-@inline height(node :: SkiplistNode) = length(node.next)
-@inline key(node :: SkiplistNode) = node.val
-@inline key(val) = val
+height(node::AbstractNode) = length(node.next)
 
-@inline is_marked_for_deletion(node) = node.marked_for_deletion
-@inline is_fully_linked(node) = node.fully_linked
+Base.show(io::IO, node::AbstractNode) = write(io, string(node))
+Base.display(node::AbstractNode) = println(string(node))
 
-@inline mark_for_deletion!(node) = (node.marked_for_deletion = true)
-@inline mark_fully_linked!(node) = (node.fully_linked = true)
+# Node links
 
-function Base.string(node :: SkiplistNode)
-    result = "key = $(key(node)), height = $(height(node)), "
-    result *= "marked_for_deletion = $(is_marked_for_deletion(node)), "
-    result *= "fully_linked = $(is_fully_linked(node))"
-    "SkiplistNode($result)"
+function link_nodes!(src, dst, level)
+    src.next[level] = dst
 end
 
-Base.show(node :: SkiplistNode) = println(string(node))
-Base.display(node :: SkiplistNode) = println(string(node))
+next(src::AbstractNode, level) = src.next[level]
 
-"""
-Check that a `SkiplistNode` is okay to be deleted, meaning that
-- it's fully linked,
-- unmarked, and
-- that it was found at its top layer.
-"""
-function ok_to_delete(node, level_found)
-    height(node) == level_found &&
-    is_fully_linked(node) &&
-    !is_marked_for_deletion(node)
-end
+# Flags
+
+has_flag(node, flag) = (node.flags & flag) != 0
+is_left_sentinel(node) = has_flag(node, FLAG_IS_LEFT_SENTINEL)
+is_right_sentinel(node) = has_flag(node, FLAG_IS_RIGHT_SENTINEL)
+is_sentinel(node) = has_flag(node, IS_SENTINEL)
 
 # Node comparison
 
-Base.:(<)(node :: SkiplistNode, val) = !(val ≤ node)
-Base.:(<)(val, node :: SkiplistNode) = !(node ≤ val)
-Base.:(<)(node_1 :: SkiplistNode, node_2 :: SkiplistNode) = !(node_2 ≤ node_1)
+Base.:(<)(node::AbstractNode, val) = !(val ≤ node)
+Base.:(<)(val, node::AbstractNode) = !(node ≤ val)
+Base.:(<)(node_1::AbstractNode, node_2::AbstractNode) = !(node_2 ≤ node_1)
 
-Base.:(<=)(node :: SkiplistNode, val) =
+Base.:(<=)(node::AbstractNode, val) =
     is_sentinel(node) ? is_left_sentinel(node) : (key(node) ≤ val)
 
-Base.:(<=)(val, node :: SkiplistNode) =
+Base.:(<=)(val, node::AbstractNode) =
     is_sentinel(node) ? is_right_sentinel(node) : (val ≤ key(node))
 
-function Base.:(<=)(node_1 :: SkiplistNode, node_2 :: SkiplistNode)
+function Base.:(<=)(node_1::AbstractNode, node_2::AbstractNode)
     if is_sentinel(node_1)
         is_left_sentinel(node_1) || is_right_sentinel(node_2)
     elseif is_sentinel(node_2)
@@ -97,27 +144,113 @@ function Base.:(<=)(node_1 :: SkiplistNode, node_2 :: SkiplistNode)
     end
 end
 
-Base.:(==)(node :: SkiplistNode, val) = is_sentinel(node) ? false : key(node) == val
-Base.:(==)(val, node :: SkiplistNode) = (node == val)
-Base.:(==)(node_1 :: SkiplistNode, node_2 :: SkiplistNode) =
+Base.:(==)(node::AbstractNode, val) = is_sentinel(node) ? false : key(node) == val
+Base.:(==)(val, node::AbstractNode) = (node == val)
+Base.:(==)(node_1::AbstractNode, node_2::AbstractNode) =
     (is_sentinel(node_1) || is_sentinel(node_2)) ?
     false :
     key(node_1) == key(node_2)
 
-# Node links
+#===========================
+Node external API
+===========================#
 
-function link_nodes!(src, dst, level)
-    src.next[level] = dst
+function Base.string(node::Node)
+    result = "$(node.vals), height = $(height(node))"
+    "Node($result)"
 end
 
-next(src :: SkiplistNode, level) = src.next[level]
+Base.length(node::Node) = length(node.vals)
 
-# Flags
+key(node::Node) = node.vals[1]
 
-@inline has_flag(node, flag) = (node.flags & flag) != 0
-@inline is_left_sentinel(node) = has_flag(node, FLAG_IS_LEFT_SENTINEL)
-@inline is_right_sentinel(node) = has_flag(node, FLAG_IS_RIGHT_SENTINEL)
-@inline is_sentinel(node) = has_flag(node, IS_SENTINEL)
+capacity(node::Node) = node.capacity
+Base.isempty(node::Node) = (length(node) == 0)
+isfull(node::Node) = is_sentinel(node) || (length(node) == capacity(node))
+
+Base.in(val, node::Node) =
+    searchsorted(node.vals, val) |>
+    idx -> first(idx) ≤ last(idx)
+
+function Base.insert!(node::Node, val)
+    if length(node) ≥ capacity(node)
+        "Node size exceeds capacity ($(capacity(node)))" |>
+        ErrorException |>
+        throw
+    end
+
+    searchsorted(node.vals, val) |>
+    idx -> insert!(node.vals, first(idx), val)
+end
+
+Base.delete!(node::Node, val) =
+    searchsorted(node.vals, val) |>
+    idx -> if first(idx) ≤ last(idx)
+        deleteat!(node.vals, first(idx))
+    end
+
+function split!(node::Node{T,M}; kws...) where {T,M}
+    median_idx = div(length(node), 2)
+    right_vals = splice!(node.vals, median_idx+1:length(node))
+    node, Node{T,M}(right_vals; kws...)
+end
+
+"""
+Insert a new node between a list of predecessor and successor nodes
+"""
+function interpolate_node!(predecessors, successors, node)
+    if length(predecessors) != length(successors)
+        "predecessor and successor lists have different lengths" |>
+        ErrorException |>
+        throw
+    end
+
+    if length(predecessors) < height(node)
+        "predecessor and successor lists must have length ≥ the height of the interpolating node" |>
+        ErrorException |>
+        throw
+    end
+
+    for level = 1:height(node)
+        link_nodes!(predecessors[level], node, level)
+        link_nodes!(node, successors[level], level)
+    end
+end
+
+
+#===========================
+ConcurrentNode external API
+===========================#
+
+function Base.string(node::ConcurrentNode)
+    result = "key = $(key(node)), height = $(height(node)), "
+    result *= "marked_for_deletion = $(is_marked_for_deletion(node)), "
+    result *= "fully_linked = $(is_fully_linked(node))"
+    "ConcurrentNode($result)"
+end
+
+Base.lock(node::ConcurrentNode) = lock(node.lock)
+Base.unlock(node::ConcurrentNode) = unlock(node.lock)
+
+key(node::ConcurrentNode) = node.val
+
+is_marked_for_deletion(node) = node.marked_for_deletion[]
+is_fully_linked(node) = node.fully_linked[]
+
+mark_for_deletion!(node) = atomic_or!(node.marked_for_deletion, true)
+mark_fully_linked!(node) = atomic_or!(node.fully_linked, true)
+
+"""
+Check that a `ConcurrentNode` is okay to be deleted, meaning that
+- it's fully linked,
+- unmarked, and
+- that it was found at its top layer.
+"""
+function ok_to_delete(node, level_found)
+    height(node) == level_found &&
+    is_fully_linked(node) &&
+    !is_marked_for_deletion(node)
+end
 
 #===========================
 Helper functions

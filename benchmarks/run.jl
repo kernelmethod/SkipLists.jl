@@ -12,7 +12,7 @@ using BenchmarkTools
 
 include("benchmark_generation.jl")
 display(benchmark_generate_vector())
-display(benchmark_generate_skiplist(Skiplist))
+display(benchmark_generate_skiplist(ConcurrentSkiplist))
 
 # include("benchmark_insertion.jl")
 # benchmark_insertion(Skiplist)

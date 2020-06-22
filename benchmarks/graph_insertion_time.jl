@@ -19,7 +19,7 @@ list_sizes = (100_000, 120_000, 140_000, 160_000)
 # Helper functions
 
 function generate_list(N)
-    list = Skiplist{Int64}()
+    list = ConcurrentSkiplist{Int64}()
     for ii = 1:N
         insert!(list, ii)
     end
