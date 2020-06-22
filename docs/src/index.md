@@ -1,3 +1,3 @@
-# Skiplists.jl
+# SkipLists.jl
 
-Documentation for Skiplists.jl
+Documentation for SkipLists.jl

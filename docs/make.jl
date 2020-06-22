@@ -6,17 +6,17 @@ Pkg.activate(); Pkg.instantiate();
 pushfirst!(LOAD_PATH, joinpath(@__DIR__, ".."))
 
 using Documenter
-using Skiplists
+using SkipLists
 
 makedocs(
-    sitename = "Skiplists",
+    sitename = "SkipLists",
     format = Documenter.HTML(),
-    modules = [Skiplists]
+    modules = [SkipLists]
 )
 
 # Documenter can also automatically deploy documentation to gh-pages.
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
 # for more information.
 deploydocs(
-    repo = "github.com/kernelmethod/Skiplists.jl.git"
+    repo = "github.com/kernelmethod/SkipLists.jl.git"
 )
