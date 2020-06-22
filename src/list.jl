@@ -15,8 +15,12 @@ mutable struct SkipList{T,M} <: AbstractSkipList{T,M}
     max_height::Int64
     node_capacity::Int64
 
+    predecessor_buffer::Vector{Node{T,M}}
+    successor_buffer::Vector{Node{T,M}}
+
     left_sentinel::Node{T,M}
     right_sentinel::Node{T,M}
+
     height::Int64
     length::Int64
 end
@@ -64,6 +68,8 @@ function SkipList{T,M}(;
 
     left_sentinel = LeftSentinel{T,M}(; max_height=max_height, capacity=node_capacity)
     right_sentinel = RightSentinel{T,M}(; max_height=max_height, capacity=node_capacity)
+    predecessors = Vector{Node{T,M}}(undef, max_height)
+    successors = Vector{Node{T,M}}(undef, max_height)
     height = 1
     length = 0
 
@@ -75,6 +81,8 @@ function SkipList{T,M}(;
         p,
         max_height,
         node_capacity,
+        predecessors,
+        successors,
         left_sentinel,
         right_sentinel,
         height,
@@ -212,9 +220,7 @@ function Base.insert!(list::SkipList, val)
 
             # If the new node has height greater than the old height of the list,
             # we must increase the size of the list.
-            if length(predecessors) < height(new_node)
-                resize!(predecessors, height(new_node))
-                resize!(successors, height(new_node))
+            if height(list) < height(new_node)
                 for ii = height(list)+1:height(new_node)
                     predecessors[ii] = list.left_sentinel
                     successors[ii] = list.right_sentinel
@@ -425,8 +431,8 @@ Traverse through a skip list, searching for the input value. Returns
 """
 function find_node(list::SkipList{T,M}, val; right_if_member = true) where {T,M}
     list_height = height(list)
-    predecessors = Vector{Node{T,M}}(undef, list_height)
-    successors = Vector{Node{T,M}}(undef, list_height)
+    predecessors = list.predecessor_buffer
+    successors = list.successor_buffer
 
     level_found = NODE_NOT_FOUND
 

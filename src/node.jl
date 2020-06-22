@@ -199,18 +199,6 @@ end
 Insert a new node between a list of predecessor and successor nodes
 """
 function interpolate_node!(predecessors, successors, node)
-    if length(predecessors) != length(successors)
-        "predecessor and successor lists have different lengths" |>
-        ErrorException |>
-        throw
-    end
-
-    if length(predecessors) < height(node)
-        "predecessor and successor lists must have length ≥ the height of the interpolating node" |>
-        ErrorException |>
-        throw
-    end
-
     for level = 1:height(node)
         link_nodes!(predecessors[level], node, level)
         link_nodes!(node, successors[level], level)
