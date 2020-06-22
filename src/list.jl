@@ -430,21 +430,12 @@ function find_node(list::SkipList{T,M}, val; right_if_member = true) where {T,M}
 
     level_found = NODE_NOT_FOUND
 
-    # If `right_if_member == false`, then we don't go to the right if val ∈ next_node
-    # on a given level as we traverse the skip list. Otherwise, we continue traversing
-    # to the right as long as val < next_node
-    go_right_condition = if !right_if_member
-        next_node -> val ∉ next_node && next_node < val
-    else
-        next_node -> next_node < val
-    end
-
     current_node = list.left_sentinel
     for ii = list_height:-1:1
         # Move to the right until we reach a node whose key is
         # greater than the value we're searching for
         next_node = next(current_node, ii)
-        while go_right_condition(next_node)
+        while next_node < val && (right_if_member || val ∉ next_node)
             current_node = next_node
             next_node = next(current_node, ii)
         end
