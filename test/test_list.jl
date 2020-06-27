@@ -100,6 +100,61 @@ using Random, SkipLists, Test
     end
 end
 
+@testset "SkiplistSet tests" begin
+    Random.seed!(0)
+
+    @testset "Insert into SkipListSet" begin
+        set = SkipListSet{Int64}()
+        for ii = 1:10
+            insert!(set, ii)
+        end
+
+        @test length(set) == 10
+        @test collect(set) == 1:10
+
+        # If we now try to insert a duplicate element into the set, it shouldn't
+        # have any effect
+        for ii = shuffle(1:10)
+            insert!(set, ii)
+        end
+
+        @test length(set) == 10
+        @test collect(set) == 1:10
+    end
+
+    @test_skip @testset "Remove from SkipListSet" begin
+        set = SkipListSet{Int64}()
+        orig = 1:100
+
+        for ii in shuffle(orig)
+            # Insert every element twice
+            insert!(set, ii)
+            insert!(set, ii)
+        end
+
+        @test length(set) == length(orig)
+        @test collect(set) == sort(orig)
+
+        # Remove all of the even elements
+        to_remove = filter(iseven, orig)
+        remaining = filter(isodd, orig) |> sort
+        for ii in shuffle(to_remove)
+            delete!(set, ii)
+            delete!(set, ii)
+        end
+
+        @test length(set) == length(remaining)
+        @test collect(set) == remaining
+
+        # Test membership of remaining elements
+        success = true
+        for ii in remaining
+            success = success && ii ∈ set
+        end
+        @test success
+    end
+end
+
 @testset "ConcurrentSkipList tests" begin
     Random.seed!(0)
 

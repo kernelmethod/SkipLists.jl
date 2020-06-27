@@ -172,15 +172,30 @@ Base.in(val, node::Node) =
     searchsorted(node.vals, val) |>
     idx -> first(idx) ≤ last(idx)
 
-function Base.insert!(node::Node, val)
-    if length(node) ≥ capacity(node)
-        "Node size exceeds capacity ($(capacity(node)))" |>
-        ErrorException |>
-        throw
-    end
+@generated function Base.insert!(node::Node{T,M}, val) where {T,M}
+    quote
+        if length(node) ≥ capacity(node)
+            "Node size exceeds capacity ($(capacity(node)))" |>
+            ErrorException |>
+            throw
+        end
 
-    searchsorted(node.vals, val) |>
-    idx -> insert!(node.vals, first(idx), val)
+        idx = searchsorted(node.vals, val)
+
+        $(
+            if M == :Set
+                quote
+                    if first(idx) > last(idx)     # Value not found in node
+                        insert!(node.vals, first(idx), val)
+                    end
+                end
+            else
+                quote
+                    insert!(node.vals, first(idx), val)
+                end
+            end
+        )
+    end
 end
 
 Base.delete!(node::Node, val) =
