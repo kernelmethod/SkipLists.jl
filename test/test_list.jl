@@ -122,7 +122,7 @@ end
         @test collect(set) == 1:10
     end
 
-    @test_skip @testset "Remove from SkipListSet" begin
+    @testset "Remove from SkipListSet" begin
         set = SkipListSet{Int64}()
         orig = 1:100
 

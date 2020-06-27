@@ -445,7 +445,7 @@ function find_node(list::SkipList{T,M}, val; right_if_member = true) where {T,M}
         # Move to the right until we reach a node whose key is
         # greater than the value we're searching for
         next_node = next(current_node, ii)
-        while next_node < val || (right_if_member && val ∈ next_node)
+        while right_if_member ? (next_node < val || val ∈ next_node) : (next_node < val && val ∉ next_node)
             current_node = next_node
             next_node = next(current_node, ii)
         end
