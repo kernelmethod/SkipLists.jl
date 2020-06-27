@@ -176,6 +176,50 @@ end
         end
         @test success
     end
+
+    @testset "Mixed insertion / deletion from ConcurrentSkipListSet" begin
+        set = ConcurrentSkipListSet{Int64}()
+        N = 10_000
+        vals = rand(Int64, 2N)
+
+        for val in vals
+            insert!(set, val)
+        end
+
+        @test length(set) == 2N
+        @test collect(set) == sort(vals)
+
+        # Delete the first half of the elements from the vals array, and
+        # simultaneously insert new elements into the array
+        new_vals = rand(Int64, N)
+        vals_to_delete = vals[1:N]
+
+        insert_ops = zip(new_vals, repeated(:insert))
+        delete_ops = zip(vals_to_delete, repeated(:delete))
+        ops = cat(collect(insert_ops), collect(delete_ops); dims=1)
+
+        success = true
+        for (val, op) in ops
+            if !success
+                break
+            end
+
+            if op == :insert
+                insert!(set, val)
+                success = val ∈ set
+            else
+                delete!(set, val)
+                success = val ∉ set
+            end
+        end
+
+        expected_vals = cat(vals[N+1:end], new_vals; dims=1)
+
+        @test length(set) == 2N
+        @test collect(set) == sort(expected_vals)
+        @test success
+    end
+
 end
 
 @testset "ConcurrentSkipList concurrency tests" begin
