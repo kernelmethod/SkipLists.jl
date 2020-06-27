@@ -38,6 +38,7 @@ using Base.Threads: @spawn
         end
 
         @test collect(list) == collect(1:20)
+        @test isa(collect(list), Vector{Int64})
         @test length(list) == 20
 
         # All of the nodes should be marked as 'fully linked'

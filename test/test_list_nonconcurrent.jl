@@ -32,6 +32,7 @@ using Base.Iterators: repeated
         end
 
         @test length(list) == 20
+        @test isa(collect(list), Vector{Int64})
         @test collect(list) == collect(1:20)
 
         # SkipList should accept duplicate values when its mode is :List. When
