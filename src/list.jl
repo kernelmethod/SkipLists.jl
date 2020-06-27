@@ -62,3 +62,4 @@ max_height(list::AbstractSkipList) = list.max_height
 
 height_p(list::AbstractSkipList) = list.height_p
 
+Base.eltype(::AbstractSkipList{T}) where T = T
