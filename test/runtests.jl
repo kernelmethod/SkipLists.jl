@@ -3,6 +3,7 @@ using Logging
 
 @info "Running tests with $(nthreads()) threads"
 
-include("test_node.jl")
-include("test_list.jl")
-include("test_list_concurrency.jl")
+include("test_node_nonconcurrent.jl")
+include("test_node_concurrent.jl")
+include("test_list_nonconcurrent.jl")
+include("test_list_concurrent.jl")
