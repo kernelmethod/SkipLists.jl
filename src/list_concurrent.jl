@@ -109,8 +109,10 @@ Base.insert!(list::ConcurrentSkipList{T,M}, val) where {T,M} =
     insert!(list, ConcurrentNode{T,M}(val; p=list.height_p, max_height=list.max_height))
 
 function Base.insert!(list::ConcurrentSkipList{T,M}, node::ConcurrentNode) where {T,M}
+    predecessors, successors = create_find_node_buffers(list, height(node))
+
     while true
-        level_found, predecessors, successors = find_node(list, node)
+        level_found = find_node!(list, node, height(node), predecessors, successors)
 
         if M == :Set
             if level_found != -1
@@ -214,15 +216,24 @@ Base.iterate(list::ConcurrentSkipList, node::ConcurrentNode) = iterate(node)
 ConcurrentSkipList internal API
 ===========================#
 
-function find_node(list::ConcurrentSkipList{T,M}, val) where {T,M}
-    list_height = height(list)
-    predecessors = Vector{ConcurrentNode{T,M}}(undef, list_height)
-    successors = Vector{ConcurrentNode{T,M}}(undef, list_height)
+create_find_node_buffers(list::ConcurrentSkipList{T,M}, height) where {T,M} =
+    (Vector{ConcurrentNode{T,M}}(undef, height), Vector{ConcurrentNode{T,M}}(undef, height))
 
+find_node(list::ConcurrentSkipList, val) = find_node(list, val, height(list))
+find_node(list::ConcurrentSkipList, node::ConcurrentNode) = find_node(list, node, height(node))
+
+function find_node(list::ConcurrentSkipList{T,M}, val, search_height) where {T,M}
+    predecessors, successors = create_find_node_buffers(list, search_height)
+    level_found = find_node!(list, val, search_height, predecessors, successors)
+
+    level_found, predecessors, successors
+end
+
+function find_node!(list::ConcurrentSkipList, val, search_height, predecessors, successors)
     level_found = NODE_NOT_FOUND
 
     current_node = list.left_sentinel
-    for ii = list_height:-1:1
+    for ii = search_height:-1:1
         next_node = next(current_node, ii)
         while next_node < val
             current_node = next_node
@@ -236,6 +247,6 @@ function find_node(list::ConcurrentSkipList{T,M}, val) where {T,M}
         successors[ii] = next_node
     end
 
-    level_found, predecessors, successors
+    level_found
 end
 
