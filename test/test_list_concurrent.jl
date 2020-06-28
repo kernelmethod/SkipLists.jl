@@ -4,7 +4,7 @@ Tests for the ConcurrentSkipList and ConcurrentSkipListSet types
 
 =======================================================#
 
-using Random, SkipLists, Test
+using Logging, Random, SkipLists, Test, Base.Threads
 using Base.Iterators: partition
 using Base.Threads: Atomic, @spawn
 
@@ -129,6 +129,69 @@ end
         wait.(tasks)
         @test length(list) == length(expected)
         @test collect(list) == expected
+    end
+
+    for list_type in (:ConcurrentSkipList, :ConcurrentSkipListSet)
+        @eval @testset "Random inserts / deletes into $($list_type)" begin
+            @info "Running mixed insert/delete tests for $($list_type)"
+
+            # Randomly insert and delete elements from the skip list from a
+            # fixed collection consisting of the numbers 1, 2, ..., N
+            list = $list_type{Int64}()
+            M = 1000
+            N_ITERS = 10_000
+            N_THREADS = 10
+
+            counts = [Atomic{Int64}(0) for ii = 1:M]
+
+            tasks = []
+            for ii = 1:N_THREADS
+                task = @spawn begin
+                    rng = MersenneTwister(ii)
+                    for jj = 1:N_ITERS
+                        if rand(rng) ≤ 0.5
+                            # Insert a random element from the `vals` array into the list
+                            val = rand(rng, 1:M)
+                            if insert!(list, val) != nothing
+                                atomic_add!(counts[val], 1)
+                            end
+                        else
+                            # Delete a random element from the `vals` array
+                            val = rand(rng, 1:M)
+                            if delete!(list, val) != nothing
+                                atomic_sub!(counts[val], 1)
+                            end
+                        end
+                    end
+                end
+                push!(tasks, task)
+            end
+
+            # Wait for all the tasks to complete, and then check that the set is in
+            # the correct final state based on the in_set array
+            wait.(tasks)
+
+            @info "Final list length: $(length(list))"
+
+            $(
+                if list_type == :ConcurrentSkipList
+                    :(@test all(x[] ≥ 0 for x in counts))
+                else
+                    :(@test all(x[] ∈ (0,1) for x in counts))
+                end
+            )
+
+            expected_length = sum(x[] for x in counts)
+            @test length(list) == expected_length
+
+            success = true
+            for (ii, x) in enumerate(counts)
+                if x[] > 0
+                    success = success && (ii ∈ list)
+                end
+            end
+            @test success
+        end
     end
 end
 

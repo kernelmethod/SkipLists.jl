@@ -77,6 +77,7 @@ A non-concurrent skip list. `T` is the type of the element that can be stored in
 
 # Examples
 
+```
 julia> using Base.Threads: @spawn
 
 julia> list = ConcurrentSkipList{Int64}();
@@ -85,6 +86,7 @@ julia> 1:10_000 |> shuffle .|> ii -> @spawn insert!(list, ii) .|> wait;
 
 julia> collect(list) == 1:10_000
 true
+```
 
 See also: [`SkipList`](@docs)
 """
