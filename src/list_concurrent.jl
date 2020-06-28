@@ -128,7 +128,7 @@ Base.insert!(list::ConcurrentSkipList{T,M}, val) where {T,M} =
                     # TODO: use Event or Condition instead of spinning
                     sleep(0.001)
                 end
-                return false
+                return nothing
             end
         end
     else
@@ -164,7 +164,7 @@ Base.insert!(list::ConcurrentSkipList{T,M}, val) where {T,M} =
 
             if valid
                 atomic_add!(list.length, 1)
-                break
+                return Some(key(node))
             end
         end
     end
@@ -179,7 +179,7 @@ function Base.delete!(list::ConcurrentSkipList, val)
 
         if !marked && (level_found == NODE_NOT_FOUND || !ok_to_delete(successors[1], level_found))
             # We didn't find the input value, so there's nothing to delete
-            return false
+            return nothing
         end
 
         if !marked
@@ -188,7 +188,7 @@ function Base.delete!(list::ConcurrentSkipList, val)
 
             if is_marked_for_deletion(node_to_delete)
                 unlock(node_to_delete)
-                return false
+                return nothing
             end
 
             marked = true
@@ -209,7 +209,7 @@ function Base.delete!(list::ConcurrentSkipList, val)
 
         if valid
             atomic_add!(list.length, -1)
-            break
+            return Some(key(node_to_delete))
         end
     end
 end

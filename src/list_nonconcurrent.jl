@@ -95,6 +95,10 @@ node_capacity(list::SkipList) = list.node_capacity
 
             insert!(insertion_node, val)
             list.length += 1
+
+            Some(val)
+        else
+            nothing
         end
     end
 end
@@ -121,6 +125,8 @@ function Base.delete!(list::SkipList, val)
     end
 
     list.length -= 1
+
+    Some(val)
 end
 
 # Implementation of the iteration interface for SkipList
