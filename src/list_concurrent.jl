@@ -109,7 +109,8 @@ Base.insert!(list::ConcurrentSkipList{T,M}, val) where {T,M} =
     insert!(list, ConcurrentNode{T,M}(val; p=list.height_p, max_height=list.max_height))
 
 function Base.insert!(list::ConcurrentSkipList{T,M}, node::ConcurrentNode) where {T,M}
-    predecessors, successors = create_find_node_buffers(list, height(node))
+    search_height = max(height(node), height(list))
+    predecessors, successors = create_find_node_buffers(list, search_height)
 
     while true
         level_found = find_node!(list, node, predecessors, successors)
@@ -157,8 +158,10 @@ function Base.delete!(list::ConcurrentSkipList, val)
     marked = false
     node_to_delete = list.left_sentinel
 
+    predecessors, successors = create_find_node_buffers(list, height(list))
+
     while true
-        level_found, predecessors, successors = find_node(list, val)
+        level_found = find_node!(list, val, predecessors, successors)
 
         if !marked && (level_found == NODE_NOT_FOUND || !ok_to_delete(successors[1], level_found))
             # We didn't find the input value, so there's nothing to delete
