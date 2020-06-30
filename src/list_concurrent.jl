@@ -112,7 +112,7 @@ function Base.insert!(list::ConcurrentSkipList{T,M}, node::ConcurrentNode) where
     predecessors, successors = create_find_node_buffers(list, height(node))
 
     while true
-        level_found = find_node!(list, node, height(node), predecessors, successors)
+        level_found = find_node!(list, node, predecessors, successors)
 
         if M == :Set
             if level_found != -1
@@ -135,17 +135,6 @@ function Base.insert!(list::ConcurrentSkipList{T,M}, node::ConcurrentNode) where
             end
         end
 
-        # Update the list height.
-        #
-        # If the height of the list is greater than the old height, then we
-        # will need to replace the connections between the left and right
-        # sentinel nodes.
-        old_height = atomic_max!(list.height, height(node))
-        for ii = length(predecessors)+1:height(node)
-            push!(predecessors, list.left_sentinel)
-            push!(successors, list.right_sentinel)
-        end
-
         # Acquire locks to predecessor nodes to ensure that they're still
         # connected to their corresponding successors
         valid = validate(predecessors, successors, node) do
@@ -153,11 +142,12 @@ function Base.insert!(list::ConcurrentSkipList{T,M}, node::ConcurrentNode) where
                 link_nodes!(predecessors[ii], node, ii)
                 link_nodes!(node, successors[ii], ii)
             end
+            atomic_add!(list.length, 1)
+            atomic_max!(list.height, height(node))
             mark_fully_linked!(node)
         end
 
         if valid
-            atomic_add!(list.length, 1)
             return Some(key(node))
         end
     end
@@ -224,12 +214,13 @@ find_node(list::ConcurrentSkipList, node::ConcurrentNode) = find_node(list, node
 
 function find_node(list::ConcurrentSkipList{T,M}, val, search_height) where {T,M}
     predecessors, successors = create_find_node_buffers(list, search_height)
-    level_found = find_node!(list, val, search_height, predecessors, successors)
+    level_found = find_node!(list, val, predecessors, successors)
 
     level_found, predecessors, successors
 end
 
-function find_node!(list::ConcurrentSkipList, val, search_height, predecessors, successors)
+function find_node!(list::ConcurrentSkipList, val, predecessors, successors)
+    search_height = length(predecessors)
     level_found = NODE_NOT_FOUND
 
     current_node = list.left_sentinel
