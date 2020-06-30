@@ -1,7 +1,9 @@
 #================================================
 
-ConcurrentSkipList- and ConcurrentSkipListSet-specific
-code.
+ConcurrentSkipList- and ConcurrentSkipListSet-specific code.
+
+Concurrency-safe skip lists are implemented using the algorithm described
+in "A Lazy Concurrent List-Based Set Algorithm" (Heller et al 2007)
 
 =================================================#
 
@@ -37,58 +39,55 @@ end
 Macros
 ===========================#
 
-macro validate(predecessors, successors, node, expr, type = :(:strong))
-    # Strong validation (used by Base.insert!) requires that we check
-    # the following:
-    # 1. the predecessor node at each level is not marked for deletion;
-    # 2. the successor node at each level is not marked for deletion; and
-    # 3. the predecessor is still connected to the successor.
-    #
-    # Weak validation (used by Base.remove!) drops the second condition, since
-    # the successor is supposed to be marked for deletion.
-    local check_valid = if type == :(:strong)
-        :(!is_marked_for_deletion(pred) &&
-          !is_marked_for_deletion(succ) &&
-          next(pred, level) === succ)
-    elseif type == :(:weak)
-        :(!is_marked_for_deletion(pred) &&
-          next(pred, level) === succ)
-    else
-        "Validation type '$(type)' is not defined" |>
-        ErrorException |>
-        throw
-    end
+function validate(f, predecessors, successors, node; type = :strong)
+    valid = true
+    level = 1
 
-    quote
-        valid = true
-        level = 1
+    try
+        # Starting from the bottom level, traverse up the height of the node
+        # and check that the $check_valid condition is true for each predecessor /
+        # successor pair.
+        while valid && level ≤ height(node)
+            pred = predecessors[level]
+            succ = successors[level]
+            lock(pred)
 
-        try
-            # Starting from the bottom level, traverse up the height of the node
-            # and check that the $check_valid condition is true for each predecessor /
-            # successor pair.
-            while valid && level ≤ height($(esc(node)))
-                pred = $(esc(predecessors))[level]
-                succ = $(esc(successors))[level]
-                lock(pred)
-
-                valid = $check_valid
-                level += 1
+            # Strong validation (used by Base.insert!) requires that we check
+            # the following:
+            # 1. the predecessor node at each level is not marked for deletion;
+            # 2. the successor node at each level is not marked for deletion; and
+            # 3. the predecessor is still connected to the successor.
+            #
+            # Weak validation (used by Base.remove!) drops the second condition, since
+            # the successor is supposed to be marked for deletion.
+            valid = if type == :strong
+                !is_marked_for_deletion(pred) &&
+                !is_marked_for_deletion(succ) &&
+                next(pred, level) === succ
+            elseif type == :weak
+                !is_marked_for_deletion(pred) &&
+                next(pred, level) === succ
+            else
+                "Validation type '$(type)' is not defined" |>
+                ErrorException |>
+                throw
             end
 
-            if valid
-                # We've acquired all of the locks required by the validation
-                # process, so we can now perform the internal expression
-                $(esc(expr))
-            end
-        finally
-            for ii = 1:level-1
-                unlock($(esc(predecessors))[ii])
-            end
+            level += 1
         end
 
-        valid
+        if valid
+            # We've acquired all of the locks required by the validation
+            # process, so we can now run the wrapped function
+            f()
+        end
+    finally
+        for ii = 1:level-1
+            unlock(predecessors[ii])
+        end
     end
+
+    valid
 end
 
 #===========================
@@ -109,9 +108,11 @@ end
 Base.insert!(list::ConcurrentSkipList{T,M}, val) where {T,M} =
     insert!(list, ConcurrentNode{T,M}(val; p=list.height_p, max_height=list.max_height))
 
-@generated function Base.insert!(list::ConcurrentSkipList{T,M}, node::ConcurrentNode) where {T,M}
-    local check_exists = if M == :Set
-        quote
+function Base.insert!(list::ConcurrentSkipList{T,M}, node::ConcurrentNode) where {T,M}
+    while true
+        level_found, predecessors, successors = find_node(list, node)
+
+        if M == :Set
             if level_found != -1
                 node_found = successors[level_found]
 
@@ -131,41 +132,31 @@ Base.insert!(list::ConcurrentSkipList{T,M}, val) where {T,M} =
                 return nothing
             end
         end
-    else
-        :()
-    end
 
-    quote
-        while true
-            level_found, predecessors, successors = find_node(list, node)
+        # Update the list height.
+        #
+        # If the height of the list is greater than the old height, then we
+        # will need to replace the connections between the left and right
+        # sentinel nodes.
+        old_height = atomic_max!(list.height, height(node))
+        for ii = length(predecessors)+1:height(node)
+            push!(predecessors, list.left_sentinel)
+            push!(successors, list.right_sentinel)
+        end
 
-            $check_exists
-
-            # Update the list height.
-            #
-            # If the height of the list is greater than the old height, then we
-            # will need to replace the connections between the left and right
-            # sentinel nodes.
-            old_height = atomic_max!(list.height, height(node))
-            for ii = old_height+1:height(node)
-                push!(predecessors, list.left_sentinel)
-                push!(successors, list.right_sentinel)
+        # Acquire locks to predecessor nodes to ensure that they're still
+        # connected to their corresponding successors
+        valid = validate(predecessors, successors, node) do
+            for ii = 1:height(node)
+                link_nodes!(predecessors[ii], node, ii)
+                link_nodes!(node, successors[ii], ii)
             end
+            mark_fully_linked!(node)
+        end
 
-            # Acquire locks to predecessor nodes to ensure that they're still
-            # connected to their corresponding successors
-            valid = @validate(predecessors, successors, node, begin
-                for ii = 1:height(node)
-                    link_nodes!(predecessors[ii], node, ii)
-                    link_nodes!(node, successors[ii], ii)
-                end
-                mark_fully_linked!(node)
-            end)
-
-            if valid
-                atomic_add!(list.length, 1)
-                return Some(key(node))
-            end
+        if valid
+            atomic_add!(list.length, 1)
+            return Some(key(node))
         end
     end
 end
@@ -200,16 +191,15 @@ function Base.delete!(list::ConcurrentSkipList, val)
             unlock(node_to_delete)
         end
 
-        valid = @validate(predecessors, successors, node_to_delete,
-        begin
+        valid = validate(predecessors, successors, node_to_delete; type = :weak) do
             for level = 1:height(node_to_delete)
                 link_nodes!(predecessors[level], next(node_to_delete, level), level)
             end
-        end, :weak)
+        end
 
         if valid
             atomic_add!(list.length, -1)
-            return Some(key(node_to_delete))
+            return Some(val)
         end
     end
 end
