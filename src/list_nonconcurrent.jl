@@ -50,56 +50,56 @@ Base.length(list::SkipList) = list.length
 
 node_capacity(list::SkipList) = list.node_capacity
 
-@generated function Base.insert!(list::SkipList{T,M}, val) where {T,M}
-    quote
-        level_found, predecessors, successors = find_node(list, val)
+function Base.insert!(list::SkipList{T,M}, val) where {T,M}
+    level_found, predecessors, successors = find_node(list, val)
 
-        # We insert into the predecessor node from our search that sits in the
-        # first level of the skip list. If that node is full, we must split it
-        # into two lists.
-        insertion_node = predecessors[1]
+    # We insert into the predecessor node from our search that sits in the
+    # first level of the skip list. If that node is full, we must split it
+    # into two lists.
+    insertion_node = predecessors[1]
 
-        if $(M == :Set ? :(level_found == NODE_NOT_FOUND) : :(true))
-            insertion_node = begin
-                if isfull(insertion_node)
-                    # Insertion would overflow the node, so we must first split it into
-                    # two nodes.
-                    old_node, new_node = split!(
-                        insertion_node;
-                        max_height=max_height(list),
-                        capacity=node_capacity(list),
-                        p=height_p(list),
-                    )
+    # If the value was found in the list and we're in :Set mode, we skip over
+    # insertion and just return `nothing`
+    if M == :Set && level_found != NODE_NOT_FOUND
+        nothing
+    else
+        insertion_node = begin
+            if isfull(insertion_node)
+                # Insertion would overflow the node, so we must first split it into
+                # two nodes.
+                old_node, new_node = split!(
+                    insertion_node;
+                    max_height=max_height(list),
+                    capacity=node_capacity(list),
+                    p=height_p(list),
+                )
 
-                    # If the new node has height greater than the old height of the list,
-                    # we must increase the size of the list.
-                    if height(list) < height(new_node)
-                        for ii = height(list)+1:height(new_node)
-                            predecessors[ii] = list.left_sentinel
-                            successors[ii] = list.right_sentinel
-                        end
-
-                        list.height = height(new_node)
+                # If the new node has height greater than the old height of the list,
+                # we must increase the size of the list.
+                if height(list) < height(new_node)
+                    for ii = height(list)+1:height(new_node)
+                        predecessors[ii] = list.left_sentinel
+                        successors[ii] = list.right_sentinel
                     end
 
-                    # Insert the new node between the predecessor / successor nodes.
-                    interpolate_node!(predecessors, successors, new_node)
-
-                    # We insert into the right node if its key is ≤ the insertion value;
-                    # otherwise, we insert into the left node.
-                    is_sentinel(old_node) || new_node ≤ val ? new_node : old_node
-                else
-                    insertion_node
+                    list.height = height(new_node)
                 end
+
+                # Insert the new node between the predecessor / successor nodes.
+                interpolate_node!(predecessors, successors, new_node)
+
+                # We insert into the right node if its key is ≤ the insertion value;
+                # otherwise, we insert into the left node.
+                is_sentinel(old_node) || new_node ≤ val ? new_node : old_node
+            else
+                insertion_node
             end
-
-            insert!(insertion_node, val)
-            list.length += 1
-
-            Some(val)
-        else
-            nothing
         end
+
+        insert!(insertion_node, val)
+        list.length += 1
+
+        Some(val)
     end
 end
 
