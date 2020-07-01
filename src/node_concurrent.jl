@@ -52,7 +52,18 @@ key(node::ConcurrentNode) = node.val
 is_marked_for_deletion(node) = node.marked_for_deletion[]
 is_fully_linked(node) = node.fully_linked[]
 
-mark_for_deletion!(node) = atomic_or!(node.marked_for_deletion, true)
+unmark_for_deletion!(node) = atomic_and!(node.marked_for_deletion, false)
+
+function mark_for_deletion!(node)
+    if !is_sentinel(node)
+        atomic_or!(node.marked_for_deletion, true)
+    else
+        # If the node is a sentinel, it can't be marked for deletion, so we
+        # always return false
+        false
+    end
+end
+
 mark_fully_linked!(node) = atomic_or!(node.fully_linked, true)
 
 """

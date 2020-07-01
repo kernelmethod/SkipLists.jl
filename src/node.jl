@@ -18,7 +18,7 @@ struct Node{T,M} <: AbstractNode{T,M}
     flags::UInt8
 end
 
-struct ConcurrentNode{T,M} <: AbstractNode{T,M}
+mutable struct ConcurrentNode{T,M} <: AbstractNode{T,M}
     val::T
     next::Vector{ConcurrentNode{T,M}}
     marked_for_deletion::Atomic{Bool}

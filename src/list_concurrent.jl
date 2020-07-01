@@ -51,6 +51,7 @@ function validate(f, predecessors, successors, node; type = :strong)
             pred = predecessors[level]
             succ = successors[level]
             lock(pred)
+            level += 1
 
             # Strong validation (used by Base.insert!) requires that we check
             # the following:
@@ -63,17 +64,15 @@ function validate(f, predecessors, successors, node; type = :strong)
             valid = if type == :strong
                 !is_marked_for_deletion(pred) &&
                 !is_marked_for_deletion(succ) &&
-                next(pred, level) === succ
+                next(pred, level-1) === succ
             elseif type == :weak
                 !is_marked_for_deletion(pred) &&
-                next(pred, level) === succ
+                next(pred, level-1) === succ
             else
                 "Validation type '$(type)' is not defined" |>
                 ErrorException |>
                 throw
             end
-
-            level += 1
         end
 
         if valid
@@ -123,6 +122,7 @@ function Base.insert!(list::ConcurrentSkipList{T,M}, node::ConcurrentNode) where
                 # is deleted before performing insertion again
                 if is_marked_for_deletion(node)
                     # TODO: use Event or Condition to wait until node is deleted?
+                    sleep(0.001)
                     continue
                 end
 
@@ -140,8 +140,8 @@ function Base.insert!(list::ConcurrentSkipList{T,M}, node::ConcurrentNode) where
         # connected to their corresponding successors
         valid = validate(predecessors, successors, node) do
             for ii = 1:height(node)
-                link_nodes!(predecessors[ii], node, ii)
                 link_nodes!(node, successors[ii], ii)
+                link_nodes!(predecessors[ii], node, ii)
             end
             atomic_add!(list.length, 1)
             atomic_max!(list.height, height(node))
@@ -154,7 +154,7 @@ function Base.insert!(list::ConcurrentSkipList{T,M}, node::ConcurrentNode) where
     end
 end
 
-function Base.delete!(list::ConcurrentSkipList, val)
+function Base.delete!(list::ConcurrentSkipList{T,M}, val) where {T,M}
     marked = false
     node_to_delete = list.left_sentinel
 
@@ -171,29 +171,26 @@ function Base.delete!(list::ConcurrentSkipList, val)
         if !marked
             node_to_delete = successors[1]
             lock(node_to_delete)
+            already_marked = mark_for_deletion!(node_to_delete)
 
-            if is_marked_for_deletion(node_to_delete)
+            if already_marked
                 unlock(node_to_delete)
                 return nothing
             end
 
             marked = true
-            mark_for_deletion!(node_to_delete)
-
-            # Now that the node is marked for deletion, we no longer need to hold on
-            # to its lock. At this point the node is read-only; no other processes
-            # will be able to make any operations on the node.
-            unlock(node_to_delete)
         end
 
         valid = validate(predecessors, successors, node_to_delete; type = :weak) do
             for level = 1:height(node_to_delete)
                 link_nodes!(predecessors[level], next(node_to_delete, level), level)
             end
+
+            unlock(node_to_delete)
+            atomic_add!(list.length, -1)
         end
 
         if valid
-            atomic_add!(list.length, -1)
             return Some(val)
         end
     end
