@@ -111,46 +111,51 @@ function Base.insert!(list::ConcurrentSkipList{T,M}, node::ConcurrentNode) where
     search_height = max(height(node), height(list))
     predecessors, successors = create_find_node_buffers(list, search_height)
 
-    while true
-        level_found = find_node!(list, node, predecessors, successors)
+    try
+        lock(node.prepared_lock)
+        while true
+            level_found = find_node!(list, node, predecessors, successors)
 
-        if M == :Set
-            if level_found != -1
-                node_found = successors[level_found]
+            if M == :Set
+                if level_found != NODE_NOT_FOUND
+                    node_found = successors[level_found]
 
-                # If the node is in the process of being deleted, wait until it
-                # is deleted before performing insertion again
-                if is_marked_for_deletion(node)
-                    # TODO: use Event or Condition to wait until node is deleted?
-                    sleep(0.001)
-                    continue
+                    # If the node is in the process of being deleted, wait until it
+                    # is deleted before performing insertion again
+                    if is_marked_for_deletion(node)
+                        # TODO: use Event or Condition to wait until node is deleted?
+                        wait(node_found.prepared_lock)
+                        continue
+                    end
+
+                    # If the node is _not_ in the process of being deleted, we wait
+                    # until it's fully linked before we return.
+                    while !is_fully_linked(node_found)
+                        # TODO: use Event or Condition instead of spinning
+                        wait(node_found.prepared_lock)
+                    end
+                    return nothing
                 end
+            end
 
-                # If the node is _not_ in the process of being deleted, we wait
-                # until it's fully linked before we return.
-                while !is_fully_linked(node_found)
-                    # TODO: use Event or Condition instead of spinning
-                    sleep(0.001)
+            # Acquire locks to predecessor nodes to ensure that they're still
+            # connected to their corresponding successors
+            valid = validate(predecessors, successors, node) do
+                for ii = 1:height(node)
+                    link_nodes!(node, successors[ii], ii)
+                    link_nodes!(predecessors[ii], node, ii)
                 end
-                return nothing
+                atomic_add!(list.length, 1)
+                atomic_max!(list.height, height(node))
+                mark_fully_linked!(node)
+            end
+
+            if valid
+                return Some(key(node))
             end
         end
-
-        # Acquire locks to predecessor nodes to ensure that they're still
-        # connected to their corresponding successors
-        valid = validate(predecessors, successors, node) do
-            for ii = 1:height(node)
-                link_nodes!(node, successors[ii], ii)
-                link_nodes!(predecessors[ii], node, ii)
-            end
-            atomic_add!(list.length, 1)
-            atomic_max!(list.height, height(node))
-            mark_fully_linked!(node)
-        end
-
-        if valid
-            return Some(key(node))
-        end
+    finally
+        unlock(node.prepared_lock)
     end
 end
 
@@ -163,12 +168,11 @@ function Base.delete!(list::ConcurrentSkipList{T,M}, val) where {T,M}
     while true
         level_found = find_node!(list, val, predecessors, successors)
 
-        if !marked && (level_found == NODE_NOT_FOUND || !ok_to_delete(successors[1], level_found))
-            # We didn't find the input value, so there's nothing to delete
-            return nothing
-        end
-
         if !marked
+            if level_found == NODE_NOT_FOUND || !ok_to_delete(successors[1], level_found)
+                return nothing
+            end
+
             node_to_delete = successors[1]
             lock(node_to_delete)
             already_marked = mark_for_deletion!(node_to_delete)
@@ -178,6 +182,7 @@ function Base.delete!(list::ConcurrentSkipList{T,M}, val) where {T,M}
                 return nothing
             end
 
+            lock(node_to_delete.prepared_lock)
             marked = true
         end
 
@@ -186,6 +191,7 @@ function Base.delete!(list::ConcurrentSkipList{T,M}, val) where {T,M}
                 link_nodes!(predecessors[level], next(node_to_delete, level), level)
             end
 
+            unlock(node_to_delete.prepared_lock)
             unlock(node_to_delete)
             atomic_add!(list.length, -1)
         end

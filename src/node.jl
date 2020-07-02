@@ -25,6 +25,7 @@ mutable struct ConcurrentNode{T,M} <: AbstractNode{T,M}
     fully_linked::Atomic{Bool}
     flags::UInt8
     lock::ReentrantLock
+    prepared_lock::Threads.Condition
 end
 
 #===========================

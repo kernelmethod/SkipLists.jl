@@ -14,11 +14,12 @@ function ConcurrentNode{T,M}(val, height; flags = 0x0, max_height = DEFAULT_MAX_
     height = min(height, max_height)
     next = Vector{ConcurrentNode{T,M}}(undef, height)
     lock = ReentrantLock()
+    prepared_lock = Threads.Condition()
 
     fully_linked = Atomic{Bool}(false)
     marked_for_deletion = Atomic{Bool}(false)
 
-    ConcurrentNode{T,M}(val, next, fully_linked, marked_for_deletion, flags, lock)
+    ConcurrentNode{T,M}(val, next, fully_linked, marked_for_deletion, flags, lock, prepared_lock)
 end
 
 function ConcurrentLeftSentinel{T,M}(; max_height = DEFAULT_MAX_HEIGHT, kws...) where {T,M}
@@ -52,11 +53,11 @@ key(node::ConcurrentNode) = node.val
 is_marked_for_deletion(node) = node.marked_for_deletion[]
 is_fully_linked(node) = node.fully_linked[]
 
-unmark_for_deletion!(node) = atomic_and!(node.marked_for_deletion, false)
+unmark_for_deletion!(node) = atomic_xchg!(node.marked_for_deletion, false)
 
 function mark_for_deletion!(node)
     if !is_sentinel(node)
-        atomic_or!(node.marked_for_deletion, true)
+        atomic_xchg!(node.marked_for_deletion, true)
     else
         # If the node is a sentinel, it can't be marked for deletion, so we
         # always return false
