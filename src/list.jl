@@ -5,8 +5,6 @@ shared code for child types.
 
 =================================================#
 
-using Base.Threads
-
 #===========================
 Typedefs
 ===========================#
@@ -35,7 +33,6 @@ julia> collect(list)
  3
 ```
 
-See also: [`ConcurrentSkipList`](@docs)
 """
 mutable struct SkipList{T,M} <: AbstractSkipList{T,M}
     # height_p: the parameter used by the geometric distribution for which the height
@@ -66,51 +63,6 @@ mutable struct SkipList{T,M} <: AbstractSkipList{T,M}
 end
 
 """
-    ConcurrentSkipList{T,M} <: AbstractSkipList{T,M}
-
-A non-concurrent skip list. `T` is the type of the element that can be stored in the
-`SkipList`, while `M` is the list's mode:
-
-- `M == :List`: the same key can be stored in a skip list multiple times.
-- `M == :Set`: only one copy of each key is allowed in the skip list.
-  `ConcurrentSkipListSet{T}` is an alias for `ConcurrentSkipList{T,:Set}`.
-
-# Examples
-
-```
-julia> using Base.Threads: @spawn
-
-julia> list = ConcurrentSkipList{Int64}();
-
-julia> 1:10_000 |> shuffle .|> ii -> @spawn insert!(list, ii) .|> wait;
-
-julia> collect(list) == 1:10_000
-true
-```
-
-See also: [`SkipList`](@docs)
-"""
-struct ConcurrentSkipList{T,M} <: AbstractSkipList{T,M}
-    # height_p: the parameter used by the geometric distribution for which the height
-    # of a newly-created node is sampled. See random_height for more information.
-    height_p::Float64
-
-    # The maximum height of a node in the skip list
-    max_height::Int64
-
-    # left / right sentinel nodes marking the left and right ends of the skip list
-    left_sentinel::ConcurrentNode{T,M}
-    right_sentinel::ConcurrentNode{T,M}
-
-    # The height of the skip list. This should be an upper bound on the height of all
-    # nodes within the skip list
-    height::Atomic{Int64}
-
-    # The number of elements in the skip list
-    length::Atomic{Int64}
-end
-
-"""
     SkipListSet{T}
 
 A non-concurrent skip list that only allows one copy of each key. `SkipListSet{T}` is an alias for
@@ -118,19 +70,11 @@ A non-concurrent skip list that only allows one copy of each key. `SkipListSet{T
 """
 SkipListSet{T} = SkipList{T,:Set}
 
-"""
-    ConcurrentSkipListSet{T}
-
-A concurrency-safe skip list that only allows one copy of each key. `ConurrentSkipListSet{T}` is an
-alias for `ConcurrentSkipList{T,:Set}`.
-"""
-ConcurrentSkipListSet{T} = ConcurrentSkipList{T,:Set}
-
 #===========================
 Shared constructors
 ===========================#
 
-for list_type in (:SkipList, :ConcurrentSkipList)
+for list_type in (:SkipList,)
     @eval $list_type{T}(args...; kws...) where T = $list_type{T,:List}(args...; kws...)
 end
 

@@ -18,21 +18,11 @@ struct Node{T,M} <: AbstractNode{T,M}
     flags::UInt8
 end
 
-mutable struct ConcurrentNode{T,M} <: AbstractNode{T,M}
-    val::T
-    next::Vector{ConcurrentNode{T,M}}
-    marked_for_deletion::Atomic{Bool}
-    fully_linked::Atomic{Bool}
-    flags::UInt8
-    lock::ReentrantLock
-    prepared_lock::Threads.Condition
-end
-
 #===========================
 Shared AbstractNode constructors
 ===========================#
 
-for dtype in (:Node, :ConcurrentNode)
+for dtype in (:Node,)
     @eval begin
         $dtype{M}(val; kws...) where {T,M} =
             $dtype{eltype(val),M}(val; kws...)

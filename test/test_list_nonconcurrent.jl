@@ -1,6 +1,6 @@
 #=======================================================
 
-Tests for the ConcurrentSkipList and ConcurrentSkipListSet types
+Tests for the SkipList and SkipListSet types
 
 =======================================================#
 

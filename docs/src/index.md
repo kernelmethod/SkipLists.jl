@@ -10,14 +10,12 @@ pkg> add SkipLists
 
 ## Interface
 
-The SkipLists.jl package exports four new types:
+The SkipLists.jl package exports two new types:
 
 - `SkipList`
 - `SkipListSet`
-- `ConcurrentSkipList`
-- `ConcurrentSkipListSet`
 
-Types prefixed by `Concurrent` are thread- and task-safe, while types suffixed by `Set` only permit one copy of a given key in the collection.
+`SkipList` allows multiple copies of a single key in the collection, whereas keys must be unique for `SkipListSet`.
 
 Construct a new skip list by specifying the type of element that should be stored in the list:
 
@@ -27,10 +25,7 @@ julia> using SkipLists
 julia> list = SkipList{Int64}();
 ```
 
-The type stored in a skip list must satisfy two conditions:
-
-1. The type must support the `<=` and `==` comparison operators.
-2. If your list is a `ConcurrentSkipList{T}` or `ConcurrentSkipListSet{T}`, `zero(::Type{T})` must be defined.
+The type of key stored in a skip list must support the `<=` and `==` comparison operators.
 
 ### Skip list operations
 

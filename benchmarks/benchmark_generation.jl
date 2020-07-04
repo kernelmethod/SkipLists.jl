@@ -36,13 +36,3 @@ function benchmark_generate_skiplist(::Type{SkipList}; N = 10_000, kws...)
     end
     @benchmark $gen_list(X) setup=(X = generate_data($N))
 end
-
-function benchmark_generate_skiplist(::Type{ConcurrentSkipList}; N = 10_000, kws...)
-    function gen_list(X::Vector{T}) where T
-        list = ConcurrentSkipList{T}(; kws...)
-        for ii in X
-            insert!(list, ii)
-        end
-    end
-    @benchmark $gen_list(X) setup=(X = generate_data($N))
-end

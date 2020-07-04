@@ -13,4 +13,3 @@ using BenchmarkTools
 include("benchmark_generation.jl")
 display(benchmark_generate_vector())
 display(benchmark_generate_skiplist(SkipList))
-display(benchmark_generate_skiplist(ConcurrentSkipList))

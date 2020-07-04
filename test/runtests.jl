@@ -6,9 +6,7 @@ using Base.Threads: nthreads
 include("list_test_utils.jl")
 
 include("test_node_nonconcurrent.jl")
-include("test_node_concurrent.jl")
 include("test_list_nonconcurrent.jl")
-include("test_list_concurrent.jl")
 
 # Doctests
 

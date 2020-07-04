@@ -29,8 +29,6 @@ abstract type AbstractSkipList{T,M} end
 
 abstract type LeftSentinel{T,M} end
 abstract type RightSentinel{T,M} end
-abstract type ConcurrentLeftSentinel{T,M} end
-abstract type ConcurrentRightSentinel{T,M} end
 
 #===========================
 Helper functions
