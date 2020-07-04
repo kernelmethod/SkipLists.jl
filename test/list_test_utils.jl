@@ -1,12 +1,11 @@
 #================================================
 
-Shared testing functions for SkipList and ConcurrentSkipList
+Shared testing functions for AbstractSkipList subtypes
 
 ================================================#
 
 using Random, SkipLists, Test
 using Base.Iterators: partition
-using Base.Threads: Atomic, @spawn
 using SkipLists: AbstractSkipList
 
 #=========================
@@ -19,10 +18,37 @@ AbstractSkipList{T,:List} subtype tests
             list = $L{Int64}()
             @test height(list) == 1
             @test length(list) == 0
+            @test eltype(list) == Int64
+
+            buff = IOBuffer()
+            show(buff, list)
+            seekstart(buff)
+
+            :(
+                if L == :SkipList
+                    @test String(read(buff)) == "SkipList{Int64}(length = 0, height = 1)"
+                end
+            )
 
             # An error should be raised if we attempt to construct a skip list in an
             # invalid mode
             @test_throws ErrorException $L{Int64,:Foo}()
+
+            # Try constructing a set instead
+            set = $L{String,:Set}()
+            @test height(set) == 1
+            @test length(set) == 0
+            @test eltype(set) == String
+
+            buff = IOBuffer()
+            show(buff, set)
+            seekstart(buff)
+
+            :(
+                if L == :SkipList
+                    @test String(read(buff)) == "SkipListSet{String}(length = 0, height = 1)"
+                end
+            )
         end
     end
 end
@@ -43,9 +69,6 @@ end
             @test length(list) == 20
             @test result_success
 
-            # ConcurrentSkipList should accept duplicate values when its mode is :List. When
-            # the mode is :Set, it will only be able to accept a single version
-            # of a given value.
             insert!(list, 1)
 
             @test length(list) == 21
@@ -63,22 +86,6 @@ end
             @test isa(collect(list), Vector{Int64})
             @test length(list) == 20
             @test result_success
-
-            $(
-                if L == :ConcurrentSkipList
-                    quote
-                        # All of the nodes should be marked as 'fully linked'
-                        current_node = list.left_sentinel
-                        success = SkipLists.is_fully_linked(current_node)
-                        while success && !SkipLists.is_right_sentinel(current_node)
-                            current_node = SkipLists.next(current_node, 1)
-                            success = SkipLists.is_fully_linked(current_node)
-                        end
-
-                        @test success
-                    end
-                end
-            )
         end
     end
 end
@@ -171,7 +178,7 @@ end
 end
 
 #=========================
-AbstractSkipList{T,:Set} subtype tests
+SkipListSet tests
 =========================#
 
 @generated function test_insert_into_skip_list_set(::Type{S}) where {S <: AbstractSkipList{T,:Set} where T}

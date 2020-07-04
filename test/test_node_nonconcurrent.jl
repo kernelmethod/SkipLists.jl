@@ -62,5 +62,22 @@ using SkipLists: Node, LeftSentinel, RightSentinel
         @test right_node.vals == 6:10
         @test SkipLists.capacity(right_node) == 25
     end
+
+    @testset "Compare nodes" begin
+        lsentinel = LeftSentinel{Int64,:List}()
+        rsentinel = RightSentinel{Int64,:List}()
+        node_1 = Node{Int64}([0])
+        node_2 = Node{Int64}(1:10)
+
+        @test lsentinel < node_1     && lsentinel ≤ node_1
+        @test node_1 < node_2        && node_1 ≤ node_2
+        @test node_2 < rsentinel     && node_2 ≤ rsentinel
+        @test lsentinel < rsentinel  && lsentinel ≤ rsentinel
+        @test lsentinel ≤ lsentinel && !(lsentinel < lsentinel)
+        @test rsentinel ≤ rsentinel && !(rsentinel < rsentinel)
+
+        @test 0 == node_1 == Node{Int64}(0:5:10) == 0
+        @test 1 == node_2 == Node{Int64}([1]) == 1
+    end
 end
 
