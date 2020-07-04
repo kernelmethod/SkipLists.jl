@@ -14,9 +14,7 @@ function generate_data(N)
     collect(uuid4() for ii = 1:N)
 end
 
-Base.zero(::Type{UUID}) = uuid4()
-
-function benchmark_generate_vector(; N = 10_000, kws...)
+function benchmark_generate_vector(; N = 100_000, kws...)
     function gen_list(X::Vector{T}) where T
         list = Vector{T}(undef, 0)
         for ii in X
@@ -27,7 +25,7 @@ function benchmark_generate_vector(; N = 10_000, kws...)
     @benchmark $gen_list(X) setup=(X = generate_data($N))
 end
 
-function benchmark_generate_skiplist(::Type{SkipList}; N = 10_000, kws...)
+function benchmark_generate_skiplist(::Type{SkipList}; N = 100_000, kws...)
     function gen_list(X::Vector{T}) where T
         list = SkipList{T}(; kws...)
         for ii in X
