@@ -86,8 +86,15 @@ function Base.show(io::IO, list::AbstractSkipList)
     write(io, string(list))
 end
 
-Base.string(list::L) where {L <: AbstractSkipList} =
-    "$L(length = $(length(list)), height = $(height(list)))"
+function Base.string(list::AbstractSkipList{T,M}) where {T,M}
+    type_str = if M == :Set
+        "SkipListSet{$T}"
+    else
+        "SkipList{$T}"
+    end
+
+    "$type_str(length = $(length(list)), height = $(height(list)))"
+end
 
 """
     max_height(list::AbstractSkipList)
