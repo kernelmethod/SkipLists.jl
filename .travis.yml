@@ -30,14 +30,14 @@ jobs:
 
     - stage: "Unit testing"
       julia: 1.4
+
+    - stage:
+      julia: 1.5
       after_success:
         # Code coverage
         - julia -e 'using Pkg; Pkg.add("Coverage");'
         - julia -e 'using Coverage; Coveralls.submit(Coveralls.process_folder());'
         - julia -e 'using Coverage; Codecov.submit(Codecov.process_folder());'
-
-    - stage:
-      julia: 1.5
 
     - stage:
       julia: nightly
@@ -47,7 +47,7 @@ jobs:
     ########################################################
 
     - stage: "Documentation"
-      julia: 1.4
+      julia: 1.5
       install:
         - julia --project=docs -e 'using Pkg; Pkg.instantiate(); Pkg.add(PackageSpec(path=pwd()));'
       script:
