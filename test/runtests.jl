@@ -7,9 +7,3 @@ include("list_test_utils.jl")
 
 include("test_node_nonconcurrent.jl")
 include("test_list_nonconcurrent.jl")
-
-# Doctests
-
-@testset "SkipLists doctests" begin
-    doctest(SkipLists)
-end
