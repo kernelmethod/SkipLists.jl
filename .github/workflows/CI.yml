@@ -21,7 +21,7 @@ jobs:
           - macOS-latest
           - windows-latest
         arch:
-          - x86
+          - x64
         exclude:
           # Test old versions only on Linux
           - os: macOS-latest
