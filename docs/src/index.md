@@ -45,7 +45,7 @@ julia> length(list)
 3
 
 julia> collect(list)
-3-element Array{Int64,1}:
+3-element Vector{Int64}:
  1
  2
  3
@@ -67,7 +67,7 @@ julia> length(list)
 2
 
 julia> collect(list)
-2-element Array{Int64,1}:
+2-element Vector{Int64}:
  1
  3
 ```
@@ -86,4 +86,17 @@ julia> 1 ∈ list
 true
 ```
 
+**Random access:** read or modify the `i`th element using indexing operations:
+
+```jldoctest; setup = :(using SkipLists)
+julia> list = SkipList{Int64}();
+
+julia> insert!(list, 4); insert!(list, 2); insert!(list, 3); 
+
+julia> list[2]
+3
+
+julia> collect(list) == [list[i] for i=1:length(list)] == 2:4
+true
+```
 

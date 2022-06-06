@@ -25,7 +25,7 @@ Abstract typedefs
 ===========================#
 
 abstract type AbstractNode{T,M} end
-abstract type AbstractSkipList{T,M} end
+abstract type AbstractSkipList{T,M} <: AbstractVector{T} end
 
 abstract type LeftSentinel{T,M} end
 abstract type RightSentinel{T,M} end

@@ -27,7 +27,7 @@ julia> list = SkipList{Int64}();
 julia> insert!(list, 1); insert!(list, 2); insert!(list, 3);
 
 julia> collect(list)
-3-element Array{Int64,1}:
+3-element Vector{Int64}:
  1
  2
  3
@@ -49,17 +49,15 @@ mutable struct SkipList{T,M} <: AbstractSkipList{T,M}
     # function
     predecessor_buffer::Vector{Node{T,M}}
     successor_buffer::Vector{Node{T,M}}
+    predecessor_offset_buffer::Vector{Int}
 
     # left / right sentinel nodes marking the left and right ends of the skip list
     left_sentinel::Node{T,M}
     right_sentinel::Node{T,M}
 
-    # The height of the skip list. This should be an upper bound on the height of all
-    # nodes within the skip list
+    # The height of the skip list. 
+    # This is one more than the height of the highest non-sentinel node.
     height::Int64
-
-    # The number of elements in the skip list
-    length::Int64
 end
 
 """
@@ -68,7 +66,7 @@ end
 A non-concurrent skip list that only allows one copy of each key. `SkipListSet{T}` is an alias for
 `SkipList{T,:Set}`.
 """
-SkipListSet{T} = SkipList{T,:Set}
+const SkipListSet{T} = SkipList{T,:Set}
 
 #===========================
 Shared constructors

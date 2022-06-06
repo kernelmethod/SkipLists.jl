@@ -14,6 +14,7 @@ Type definitions
 struct Node{T,M} <: AbstractNode{T,M}
     vals::Vector{T}
     next::Vector{Node{T,M}}
+    width::Vector{Int}
     capacity::Int64
     flags::UInt8
 end
