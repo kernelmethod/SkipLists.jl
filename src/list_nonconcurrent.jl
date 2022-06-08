@@ -264,4 +264,13 @@ function interpolate_node!(list, node, predecessors, successors, predecessor_off
     end
 end
 
+function collect_nodes(skiplist)
+    current = skiplist.left_sentinel
+    res = [current]
+    while current !== skiplist.right_sentinel
+        current = next(current, 1)
+        push!(res, current)
+    end
+    res
+end
 
