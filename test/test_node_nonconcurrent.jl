@@ -66,8 +66,8 @@ using SkipLists: Node, LeftSentinel, RightSentinel
     @testset "Compare nodes" begin
         lsentinel = LeftSentinel{Int64,:List}()
         rsentinel = RightSentinel{Int64,:List}()
-        node_1 = Node{Int64}([0])
-        node_2 = Node{Int64}(1:10)
+        node_1 = Node{:List}([0])
+        node_2 = Node{:List}(1:10)
 
         @test lsentinel < node_1     && lsentinel ≤ node_1
         @test node_1 < node_2        && node_1 ≤ node_2
@@ -76,8 +76,8 @@ using SkipLists: Node, LeftSentinel, RightSentinel
         @test lsentinel ≤ lsentinel && !(lsentinel < lsentinel)
         @test rsentinel ≤ rsentinel && !(rsentinel < rsentinel)
 
-        @test 0 == node_1 == Node{Int64}(0:5:10) == 0
-        @test 1 == node_2 == Node{Int64}([1]) == 1
+        @test 0 == node_1 == Node{:List}(0:5:10) == 0
+        @test 1 == node_2 == Node{:List}([1]) == 1
     end
 end
 
