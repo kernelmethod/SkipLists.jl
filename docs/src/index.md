@@ -86,7 +86,7 @@ julia> 1 ∈ list
 true
 ```
 
-**Random access:** read or modify the `i`th element using indexing operations:
+**Random access:** read the `i`th element using indexing operations:
 
 ```jldoctest; setup = :(using SkipLists)
 julia> list = SkipList{Int64}();
