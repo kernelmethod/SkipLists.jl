@@ -30,29 +30,6 @@ using SkipLists: Node, LeftSentinel, RightSentinel
         @test SkipLists.is_right_sentinel(rsentinel)
     end
 
-    @testset "Insert and delete from Node" begin
-        node = Node{:List}(1:2:50; capacity=100)
-
-        success = true
-        for ii = shuffle(2:2:50)
-            insert!(node, ii)
-            success = success && ii ∈ node
-        end
-        @test success
-
-        success = true
-        for ii = shuffle(1:2:50)
-            delete!(node, ii)
-            success = success && ii ∉ node
-        end
-        @test success
-
-        # If we attempt to insert into a node past its capacity, we should
-        # get an error
-        node = Node{:List}(1:10; capacity=10)
-        @test SkipLists.isfull(node)
-        @test_throws ErrorException insert!(node, 11)
-    end
 
     @testset "Split Node" begin
         node = Node{:List}(1:10)

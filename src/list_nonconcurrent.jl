@@ -60,66 +60,69 @@ function Base.getindex(list::SkipList, i)
 end
 
 function Base.insert!(list::SkipList{T,M}, val) where {T,M}
-    level_found, predecessors, successors, predecessor_offsets = find_node(list, val)
+    insertion_node, location, predecessors, successors, predecessor_offsets = find_node(list, val)
 
     # We insert into the predecessor node from our search that sits in the
     # first level of the skip list. If that node is full, we must split it
     # into two lists.
-    insertion_node = predecessors[1]
+    @assert insertion_node === predecessors[1]
+    insertion_index = first(location)
 
     # If the value was found in the list and we're in :Set mode, we skip over
     # insertion and just return `nothing`
-    if M == :Set && level_found != NODE_NOT_FOUND
+    if M == :Set && !isempty(location) #level_found != NODE_NOT_FOUND
         nothing
     else
-        insertion_node = begin
-            if isfull(insertion_node)
-                # Insertion would overflow the node, so we must first split it into
-                # two nodes.
-                old_node, new_node = split!(
-                    insertion_node;
-                    max_height=max_height(list),
-                    capacity=node_capacity(list),
-                    p=height_p(list),
-                )
+        if isfull(insertion_node)
+            # Insertion would overflow the node, so we must first split it into
+            # two nodes.
+            old_node, new_node = split!(
+                insertion_node;
+                max_height=max_height(list),
+                capacity=node_capacity(list),
+                p=height_p(list),
+            )
 
-                # Fix node widths to account for elements removed from `old_node`
-                # (`new_node` is still not in the list)
-                n_removed = length(new_node)
-                for level = 1:height(list)
-                    @assert level > height(old_node) || predecessors[level] === old_node
-                    predecessors[level].width[level] -= n_removed
+            # Fix node widths to account for elements removed from `old_node`
+            # (`new_node` is still not in the list)
+            n_removed = length(new_node)
+            for level = 1:height(list)
+                @assert level > height(old_node) || predecessors[level] === old_node
+                predecessors[level].width[level] -= n_removed
+            end
+
+            # Height of list should be kept at least one higher than highest non-sentinel node
+            # (since the width of the left sentinel must be correctly maintained at the 
+            #  level above the highest non-sentinel).
+            # Grow as necessary before inserting the new node.
+            if height(list) < height(new_node) + 1
+                len = length(list) # == list.left_sentinel.width[height(list)]
+                for ii = height(list)+1:height(new_node)+1
+                    predecessors[ii] = list.left_sentinel
+                    successors[ii] = list.right_sentinel
+                    predecessor_offsets[ii] = 0
+                    list.left_sentinel.width[ii] = len
                 end
 
-                # Height of list should be kept at least one higher than highest non-sentinel node
-                # (since the width of the left sentinel must be correctly maintained at the 
-                #  level above the highest non-sentinel).
-                # Grow as necessary before inserting the new node.
-                if height(list) < height(new_node) + 1
-                    len = length(list) # == list.left_sentinel.width[height(list)]
-                    for ii = height(list)+1:height(new_node)+1
-                        predecessors[ii] = list.left_sentinel
-                        successors[ii] = list.right_sentinel
-                        predecessor_offsets[ii] = 0
-                        list.left_sentinel.width[ii] = len
-                    end
+                list.height = height(new_node) + 1
+            end
 
-                    list.height = height(new_node) + 1
-                end
+            # Insert the new node between the predecessor / successor nodes.
+            interpolate_node!(list, new_node, predecessors, successors, predecessor_offsets)
 
-                # Insert the new node between the predecessor / successor nodes.
-                interpolate_node!(list, new_node, predecessors, successors, predecessor_offsets)
-
-                # We insert into the right node if its key is ≤ the insertion value;
-                # otherwise, we insert into the left node.
-                is_sentinel(old_node) || new_node ≤ val ? new_node : old_node
-            else
-                insertion_node
+            # We insert into the right node if its key is ≤ the insertion value;
+            # otherwise, we insert into the left node.
+            @assert insertion_node === old_node
+            if is_sentinel(old_node) || new_node ≤ val
+                insertion_node = new_node
+                insertion_index -= length(old_node)
             end
         end
 
-        insert!(insertion_node, val)
+        insert!(insertion_node.vals, insertion_index, val)
         for level = 1:height(insertion_node)
+            # `insertion_node` may differ from `predecessor[level]` at these levels 
+            # if the original `insertion_node` was split
             insertion_node.width[level] += 1
         end
         for level = height(insertion_node)+1:height(list)
@@ -131,18 +134,19 @@ function Base.insert!(list::SkipList{T,M}, val) where {T,M}
 end
 
 function Base.in(val, list::SkipList)
-    level_found, predecessors, successors = find_node(list, val; right_if_member = false)
-    level_found != NODE_NOT_FOUND
+    _, location, _... = find_node(list, val)
+    !isempty(location)
 end
 
-function Base.delete!(list::SkipList, val)
-    level_found, predecessors, successors = find_node(list, val; right_if_member = false)
-    if level_found == NODE_NOT_FOUND
-        return nothing
-    end
+function Base.delete!(list::SkipList{T,M}, val) where {T,M}
+    deletion_node, location, predecessors, successors, _ = find_node(list, val; compare_smallest = false)
+    @assert deletion_node === successors[1]
 
-    deletion_node = successors[1]
-    result = delete!(deletion_node, val)
+    isempty(location) && return nothing # value not in list
+    M == :Set && @assert length(location) == 1
+    deletion_index = last(location)
+
+    deleteat!(deletion_node.vals, deletion_index)
     for ii = 1:height(deletion_node)
         deletion_node.width[ii] -= 1
     end
@@ -186,49 +190,46 @@ SkipList internal API
 """
 Traverse through a skip list, searching for the input value. Returns
 
-- `level_found`: the first level on which a node was found containing the
-  input value.
-- `predecessors`: a list of nodes with the property that `predecessors[ii]`
-  is the rightmost node whose key is `≤ val` in the `ii`th level.
+- `node`: a node where the value is found, or where it could be inserted.
+- `location`: the range of indexes in `node.vals` where the value is found,
+              or an empty range at the insertion index if not found.
+- `predecessors`: a list of nodes preceding the value:
+    - if `compare_smallest` is `true`, `predecessors[ii]` is the rightmost 
+        node in the `ii`th level whose *smallest* element is `≤ val`.
+    - if `compare_smallest` is `false`, `predecessors[ii]` is the rightmost 
+        node in the `ii`th level whose *largest* element is `< val`.
 - `successors`: a list of the nodes that come after the predecessor nodes in
   the `predecessors` list.
 """
-function find_node(list::SkipList{T,M}, val; right_if_member = true) where {T,M}
+function find_node(list::SkipList{T,M}, val; compare_smallest = true) where {T,M}
     list_height = height(list)
     predecessors = list.predecessor_buffer
     successors = list.successor_buffer
     predecessor_offsets = list.predecessor_offset_buffer
 
-    level_found = NODE_NOT_FOUND
-
     current_node, current_offset = list.left_sentinel, 0
+    local next_node
+    @assert list_height >= 1
     for ii = list_height:-1:1
         # Move to the right until we reach a node whose key is
         # greater than the value we're searching for
         next_node = next(current_node, ii)
         next_offset = current_offset + current_node.width[ii]
-        while right_if_member ? (next_node < val || val ∈ next_node) : (next_node < val && val ∉ next_node)
+        while compare_smallest ? next_node <= val : !is_right_sentinel(next_node) && next_node.vals[end] < val
             current_node, current_offset = next_node, next_offset
             next_node = next(current_node, ii)
             next_offset = current_offset + current_node.width[ii]
         end
 
-        # Note to future self: trying to figure out how to delete node. Need
-        # to reconsider the < inequality when doing search
-
-        if level_found == NODE_NOT_FOUND
-            if (right_if_member || is_left_sentinel(current_node)) && val ∈ current_node
-                level_found = ii
-            elseif !right_if_member && val ∈ next_node
-                level_found = ii
-            end
-        end
         predecessors[ii] = current_node
         successors[ii] = next_node
         predecessor_offsets[ii] = current_offset
     end
 
-    level_found, predecessors, successors, predecessor_offsets
+    node = compare_smallest ? current_node : next_node
+    location = searchsorted(node.vals, val)
+
+    node, location, predecessors, successors, predecessor_offsets
 end
 
 """
