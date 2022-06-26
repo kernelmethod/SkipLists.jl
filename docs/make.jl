@@ -1,22 +1,21 @@
-using Pkg
-
-Pkg.activate(joinpath(@__DIR__, "..")); Pkg.instantiate()
-Pkg.activate(); Pkg.instantiate();
-
-pushfirst!(LOAD_PATH, joinpath(@__DIR__, ".."))
-
 using Documenter
 using SkipLists
 
-makedocs(
-    sitename = "SkipLists",
-    format = Documenter.HTML(),
-    modules = [SkipLists]
+DocMeta.setdocmeta!(SkipLists, :DocTestSetup, :(using SkipLists); recursive=true)
+
+makedocs(;
+    modules=[SkipLists],
+    authors="kernelmethod <17100608+kernelmethod@users.noreply.github.com> and contributors",
+    repo="https://github.com/kernelmethod/SkipLists.jl/blob/{commit}{path}#{line}",
+    sitename="SkipLists.jl",
+    format=Documenter.HTML(;
+        prettyurls=get(ENV, "CI", "false") == "true",
+        canonical="https://kernelmethod.github.io/SkipLists.jl",
+        assets=String[],
+    ),
 )
 
-# Documenter can also automatically deploy documentation to gh-pages.
-# See "Hosting Documentation" and deploydocs() in the Documenter manual
-# for more information.
 deploydocs(
-    repo = "github.com/kernelmethod/SkipLists.jl.git"
+    repo = "github.com/kernelmethod/SkipLists.jl.git",
+    devbranch="main",
 )
