@@ -1,7 +1,7 @@
 name = "SkipLists"
 uuid = "1bc1db3f-e088-4b4f-941a-131a3eb578db"
 authors = ["kernelmethod <17100608+kernelmethod@users.noreply.github.com>"]
-version = "1.1.0"
+version = "1.1.1"
 
 [deps]
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
