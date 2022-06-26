@@ -12,6 +12,24 @@ using SkipLists: AbstractSkipList
 AbstractSkipList{T,:List} subtype tests
 =========================#
 
+function invariant_tests(list::SkipList)
+    # test node widths
+    nodes = SkipLists.collect_nodes(list)
+    @testset "node widths" begin
+        for i in 1:length(nodes)-1
+            for level in 1:min(height(nodes[i]), height(list))
+                next = i + findfirst(j -> height(nodes[j]) >= level, i+1:length(nodes))
+                for lower in 1:level-1
+                    @test nodes[i].width[level] == sum(
+                            nodes[j].width[lower] for j = i:next-1 if height(nodes[j]) >= lower; init=0)
+                end
+            end
+        end
+    end
+    # test random access
+    @test [list[i] for i=1:length(list)] == collect(list)
+end
+
 @generated function test_construct_list(::Type{L}) where {L <: AbstractSkipList}
     quote
         @testset "Construct new $($L)" begin
@@ -55,37 +73,40 @@ end
 
 @generated function test_insert_into_list(::Type{L}) where {L <: AbstractSkipList}
     quote
-        @testset "Insert into $($L)" begin
+        @testset "Insert 1:$n into $($L)" for n = [20, 1000, 100_000]
             # Insert sorted values
             list = $L{Int64}()
             result_success = true
-            for ii = 1:20
+            for ii = 1:n
                 result = insert!(list, ii)
                 result_success = result_success && (result == Some(ii))
             end
 
-            @test collect(list) == collect(1:20)
+            @test collect(list) == 1:n
             @test isa(collect(list), Vector{Int64})
-            @test length(list) == 20
+            @test length(list) == n
             @test result_success
+            invariant_tests(list)
 
             insert!(list, 1)
 
-            @test length(list) == 21
-            @test collect(list) == cat([1], 1:20; dims=1)
+            @test length(list) == n+1
+            @test collect(list) == [1; 1:n]
+            invariant_tests(list)
 
             # Insert shuffled values
             list = $L{Int64}()
             result_success = true
-            for ii in shuffle(1:20)
+            for ii in shuffle(1:n)
                 result = insert!(list, ii)
                 result_success = result_success && (result == Some(ii))
             end
 
-            @test collect(list) == collect(1:20)
+            @test collect(list) == 1:n
             @test isa(collect(list), Vector{Int64})
-            @test length(list) == 20
+            @test length(list) == n
             @test result_success
+            invariant_tests(list)
         end
     end
 end
@@ -97,6 +118,7 @@ end
             list = $L{Int64}()
             for ii in vals
                 insert!(list, ii)
+                invariant_tests(list)
             end
 
             success = true
@@ -160,19 +182,23 @@ end
             @test length(list) == 2
             @test 1 ∉ list
             @test collect(list) == collect(2:3)
+            invariant_tests(list)
 
             @test delete!(list, 2) == Some(2)
             @test length(list) == 1
             @test 2 ∉ list
             @test collect(list) == collect(3:3)
+            invariant_tests(list)
 
             @test delete!(list, 3) == Some(3)
             @test length(list) == 0
             @test 3 ∉ list
+            invariant_tests(list)
 
             @test delete!(list, 0) == nothing
             @test collect(list) == []
             @test length(list) == 0
+            invariant_tests(list)
         end
     end
 end
@@ -189,6 +215,7 @@ SkipListSet tests
             for ii = 1:10
                 result = insert!(set, ii)
                 result_success = result_success && (result == Some(ii))
+                invariant_tests(set)
             end
 
             @test length(set) == 10
@@ -201,6 +228,7 @@ SkipListSet tests
             for ii = shuffle(1:10)
                 result = insert!(set, ii)
                 result_success = result_success && (result == nothing)
+                invariant_tests(set)
             end
 
             @test length(set) == 10
@@ -222,6 +250,7 @@ end
                 # Some(val); the second insertion fails and thus should return Nothing.
                 result_success = result_success && (insert!(set, ii) == Some(ii))
                 result_success = result_success && (insert!(set, ii) == nothing)
+                invariant_tests(set)
             end
 
             @test length(set) == length(orig)
@@ -237,6 +266,7 @@ end
                 # return Some(ii). The second delete should fail and return Nothing.
                 result_success = result_success && (delete!(set, ii) == Some(ii))
                 result_success = result_success && (delete!(set, ii) == nothing)
+                invariant_tests(set)
             end
 
             @test length(set) == length(remaining)
@@ -266,6 +296,7 @@ end
 
             @test length(set) == 2N
             @test collect(set) == sort(vals)
+            invariant_tests(set)
 
             # Delete the first half of the elements from the vals array, and
             # simultaneously insert new elements into the array
@@ -296,6 +327,7 @@ end
             @test length(set) == 2N
             @test collect(set) == sort(expected_vals)
             @test success
+            invariant_tests(set)
         end
     end
 end
