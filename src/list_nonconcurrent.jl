@@ -82,6 +82,13 @@ function Base.insert!(list::SkipList{T,M}, val) where {T,M}
                 capacity=node_capacity(list),
                 p=height_p(list),
             )
+            
+            # Correct the insertion point if necessary to account for the split
+            @assert insertion_node === old_node
+            if insertion_index > length(old_node)
+                insertion_node = new_node
+                insertion_index -= length(old_node)
+            end
 
             # Fix node widths to account for elements removed from `old_node`
             # (`new_node` is still not in the list)
@@ -109,14 +116,6 @@ function Base.insert!(list::SkipList{T,M}, val) where {T,M}
 
             # Insert the new node between the predecessor / successor nodes.
             interpolate_node!(list, new_node, predecessors, successors, predecessor_offsets)
-
-            # We insert into the right node if its key is ≤ the insertion value;
-            # otherwise, we insert into the left node.
-            @assert insertion_node === old_node
-            if is_sentinel(old_node) || new_node ≤ val
-                insertion_node = new_node
-                insertion_index -= length(old_node)
-            end
         end
 
         insert!(insertion_node.vals, insertion_index, val)

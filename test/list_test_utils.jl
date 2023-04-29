@@ -108,7 +108,86 @@ end
             @test result_success
             invariant_tests(list)
         end
+
+        @testset "Insert random floats" for n = [20, 1000, 100_000]
+            vals = rand(n)
+            vals_sorted = sort(vals)
+
+            list = $L{Float64}()
+            result_success = true
+            for x in vals
+                result = insert!(list, x)
+                result_success = result_success && (result == Some(x))
+            end
+            
+            @test collect(list) == vals_sorted
+            @test collect(list) isa Vector{Float64}
+            @test length(list) == n
+            @test result_success
+            invariant_tests(list)
+
+            insert!(list, -1)
+
+            @test length(list) == n+1
+            @test collect(list) == [-1; vals_sorted]
+            invariant_tests(list)
+
+            # Insert sorted values
+            list = $L{Float64}()
+            result_success = true
+            for x in vals_sorted
+                result = insert!(list, x)
+                result_success = result_success && (result == Some(x))
+            end
+
+            @test collect(list) == vals_sorted
+            @test collect(list) isa Vector{Float64}
+            @test length(list) == n
+            @test result_success
+            invariant_tests(list)
+        end
+
+        @testset "Insert with many duplicates" for node_capacity in [20, 1000, 100_000]
+            # vals with many duplicates, each value count exceeding node capacity
+            n = 10 * node_capacity
+            vals = rand(-1:1, n)
+            vals_sorted = sort(vals)
+
+            list = $L{Float64}(; node_capacity)
+            result_success = true
+            for x in vals
+                result = insert!(list, x)
+                result_success = result_success && (result == Some(x))
+            end
+            
+            @test collect(list) == vals_sorted
+            @test collect(list) isa Vector{Float64}
+            @test length(list) == n
+            @test result_success
+            invariant_tests(list)
+
+            insert!(list, -10)
+
+            @test length(list) == n+1
+            @test collect(list) == [-10; vals_sorted]
+            invariant_tests(list)
+
+            # Insert sorted values
+            list = $L{Float64}(; node_capacity)
+            result_success = true
+            for x in vals_sorted
+                result = insert!(list, x)
+                result_success = result_success && (result == Some(x))
+            end
+
+            @test collect(list) == vals_sorted
+            @test collect(list) isa Vector{Float64}
+            @test length(list) == n
+            @test result_success
+            invariant_tests(list)
+        end
     end
+
 end
 
 @generated function test_iterate_over_list(::Type{L}) where {L <: AbstractSkipList}
